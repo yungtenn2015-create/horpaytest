@@ -87,12 +87,28 @@ CREATE TABLE dorm_settings (
   id                     UUID    PRIMARY KEY DEFAULT gen_random_uuid(), -- รหัส settings
   dorm_id                UUID    NOT NULL UNIQUE REFERENCES dorms(id) ON DELETE CASCADE, -- เชื่อมกับหอพัก (unique = one-to-one)
   water_rate_per_unit    NUMERIC(10,2) NOT NULL DEFAULT 0,            -- ราคาค่าน้ำต่อหน่วย (บาท)
+  water_billing_type     TEXT          NOT NULL DEFAULT 'per_unit'    -- รูปแบบการคิดค่าน้ำ ('per_unit' หรือ 'flat_rate')
+                         CHECK (water_billing_type IN ('per_unit', 'flat_rate')),
+  water_flat_rate        NUMERIC(10,2) NOT NULL DEFAULT 0,            -- ราคาค่าน้ำเหมาจ่ายต่อเดือน (บาท)
   electric_rate_per_unit NUMERIC(10,2) NOT NULL DEFAULT 0,            -- ราคาค่าไฟต่อหน่วย (บาท)
-  common_fee             NUMERIC(10,2) NOT NULL DEFAULT 0,            -- ค่าส่วนกลางต่อเดือน (บาท)
+  common_fee             NUMERIC(10,2) NOT NULL DEFAULT 0,            -- ค่าส่วนกลางต่อเดือน (บาท) [หมายเหตุ: อาจจะเลิกใช้หรือเก็บรวมไว้ดูยอดเฉยๆ]
   bank_name              TEXT,                                        -- ชื่อธนาคารสำหรับรับโอนเงิน
   bank_account_no        TEXT,                                        -- เลขบัญชีธนาคาร
   bank_account_name      TEXT,                                        -- ชื่อบัญชีธนาคาร
   billing_day            INT CHECK (billing_day BETWEEN 1 AND 31)     -- วันที่ตัดรอบบิลของเดือน (1-31)
+);
+
+-- ============================================================
+-- TABLE: dorm_services
+-- เก็บรายการค่าบริการเพิ่มเติมที่หอพักเรียกเก็บ (เช่น ค่าอินเทอร์เน็ต, ค่าจอดรถ)
+-- แยกรายการเพื่อให้แสดงในบิลได้อย่างละเอียด
+-- ============================================================
+CREATE TABLE dorm_services (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  dorm_id     UUID        NOT NULL REFERENCES dorms(id) ON DELETE CASCADE,
+  name        TEXT        NOT NULL,                             -- ชื่อบริการ เช่น "ค่าจอดรถ"
+  price       NUMERIC(10,2) NOT NULL DEFAULT 0,                 -- ราคาบริการรายเดือน
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()                -- วันที่สร้าง
 );
 
 -- ============================================================
@@ -346,6 +362,7 @@ CREATE TRIGGER trg_check_payment_total
 -- สร้าง index เพื่อเพิ่มความเร็วในการ query ที่ใช้บ่อย
 -- ============================================================
 CREATE INDEX idx_dorms_owner        ON dorms(owner_id);           -- ค้นหาหอพักของเจ้าของคนหนึ่งๆ
+CREATE INDEX idx_dorm_services_dorm ON dorm_services(dorm_id);    -- ค้นหาบริการของหอพัก
 CREATE INDEX idx_rooms_dorm         ON rooms(dorm_id);            -- ค้นหาห้องทั้งหมดในหอพัก
 CREATE INDEX idx_tenants_room       ON tenants(room_id);          -- ค้นหาผู้เช่าในห้องหนึ่งๆ
 -- [FIX 5] เพิ่ม index บน tenants.user_id
@@ -538,19 +555,29 @@ CREATE TRIGGER trg_check_room_plan_limit_update
 CREATE OR REPLACE FUNCTION calc_utilities()
 RETURNS trigger AS $$
 DECLARE
-  v_electric_rate NUMERIC;
-  v_water_rate    NUMERIC;
+  v_electric_rate    NUMERIC;
+  v_water_rate       NUMERIC;
+  v_water_type       TEXT;
+  v_water_flat_rate  NUMERIC;
 BEGIN
-  SELECT ds.electric_rate_per_unit, ds.water_rate_per_unit
-  INTO   v_electric_rate, v_water_rate
+  SELECT ds.electric_rate_per_unit, ds.water_rate_per_unit, ds.water_billing_type, ds.water_flat_rate
+  INTO   v_electric_rate, v_water_rate, v_water_type, v_water_flat_rate
   FROM   dorm_settings ds
   JOIN   rooms r ON r.dorm_id = ds.dorm_id
   WHERE  r.id = NEW.room_id;
 
+  -- คำนวณค่าไฟ (ตามมิเตอร์เสมอ)
   NEW.electric_unit  := NEW.curr_electric_meter - NEW.prev_electric_meter;
-  NEW.water_unit     := NEW.curr_water_meter    - NEW.prev_water_meter;
   NEW.electric_price := NEW.electric_unit * COALESCE(v_electric_rate, 0);
-  NEW.water_price    := NEW.water_unit    * COALESCE(v_water_rate,    0);
+
+  -- คำนวณค่าน้ำ (มิเตอร์ หรือ เหมา)
+  IF COALESCE(v_water_type, 'per_unit') = 'flat_rate' THEN
+    NEW.water_unit  := 0;
+    NEW.water_price := COALESCE(v_water_flat_rate, 0);
+  ELSE
+    NEW.water_unit  := NEW.curr_water_meter - NEW.prev_water_meter;
+    NEW.water_price := NEW.water_unit * COALESCE(v_water_rate, 0);
+  END IF;
 
   RETURN NEW;
 END;
@@ -623,6 +650,41 @@ CREATE TRIGGER trg_audit_bills
 -- SECURITY DEFINER = ฟังก์ชันรันด้วยสิทธิ์ของ owner (postgres)
 -- ทำให้ authenticated user เรียกใช้ได้ โดยไม่ต้องให้สิทธิ์อ่าน vault โดยตรง
 -- → key ไม่มีทางโผล่ใน application code หรือ logs เลย
+
+-- ============================================================
+-- RPC: เพิ่มผู้เช่าใหม่และเข้ารหัสบัตร ปชช. ในตัว
+-- ============================================================
+CREATE OR REPLACE FUNCTION add_tenant(
+  p_room_id UUID,
+  p_name TEXT,
+  p_phone TEXT,
+  p_id_card_number TEXT
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_encrypted_id_card BYTEA;
+  v_tenant_id UUID;
+BEGIN
+  -- 1. เข้ารหัสบัตร ปชช. (ถ้ามีส่งมา)
+  IF p_id_card_number IS NOT NULL AND p_id_card_number != '' THEN
+    v_encrypted_id_card := encrypt_id_card(p_id_card_number);
+  END IF;
+
+  -- 2. Insert ลงตาราง tenants
+  INSERT INTO tenants (room_id, name, phone, id_card_number, status)
+  VALUES (p_room_id, p_name, p_phone, v_encrypted_id_card, 'active')
+  RETURNING id INTO v_tenant_id;
+
+  -- 3. Update สถานะห้องเป็น 'occupied' (มีผู้เช่าแล้ว)
+  UPDATE rooms SET status = 'occupied' WHERE id = p_room_id;
+
+  RETURN v_tenant_id;
+END;
+$$;
+
 
 -- ฟังก์ชันเข้ารหัส: เรียกตอน INSERT / UPDATE
 CREATE OR REPLACE FUNCTION encrypt_id_card(plain_text TEXT)

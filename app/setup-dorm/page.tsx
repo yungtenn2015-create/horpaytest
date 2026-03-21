@@ -240,11 +240,16 @@ export default function SetupDormPage() {
 
             // 3. Create Dorm Settings
             const totalCommonFee = services.reduce((acc, s) => acc + s.price, 0)
+            const dbWaterType = waterType === 'fixed' ? 'flat_rate' : 'per_unit'
+            const parsedWaterRate = parseFloat(waterRate) || 0
+
             const { error: settingsError } = await supabase
                 .from('dorm_settings')
                 .insert({
                     dorm_id: dorm.id,
-                    water_rate_per_unit: parseFloat(waterRate) || 0,
+                    water_rate_per_unit: dbWaterType === 'per_unit' ? parsedWaterRate : 0,
+                    water_billing_type: dbWaterType,
+                    water_flat_rate: dbWaterType === 'flat_rate' ? parsedWaterRate : 0,
                     electric_rate_per_unit: parseFloat(electricRate) || 0,
                     common_fee: totalCommonFee,
                     bank_name: bankName,
@@ -254,6 +259,20 @@ export default function SetupDormPage() {
                 })
 
             if (settingsError) throw settingsError
+
+            // 3.5 Create Dorm Services (Itemized)
+            if (services.length > 0) {
+                const servicesToInsert = services.map(s => ({
+                    dorm_id: dorm.id,
+                    name: s.name,
+                    price: s.price
+                }))
+                const { error: servicesError } = await supabase
+                    .from('dorm_services')
+                    .insert(servicesToInsert)
+
+                if (servicesError) throw servicesError
+            }
 
             // 4. Create Rooms
             const roomsToInsert = floors.flatMap(f =>
@@ -565,11 +584,9 @@ export default function SetupDormPage() {
                                         </div>
                                         <button
                                             onClick={addService}
-                                            className="w-12 h-12 bg-green-600 text-white rounded-xl flex items-center justify-center hover:bg-green-700 active:scale-95 transition-all shadow-md"
+                                            className="px-6 h-12 bg-green-600 text-white font-bold rounded-xl flex items-center justify-center hover:bg-green-700 active:scale-95 transition-all shadow-md"
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
-                                                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                                            </svg>
+                                            เพิ่ม
                                         </button>
                                     </div>
                                 </div>
@@ -747,7 +764,7 @@ export default function SetupDormPage() {
                                                                 title: 'ระบุราคา (พัดลม)',
                                                                 description: `ระบุราคาสำหรับห้องพัดลมทั้งชั้น ${f.floorNumber} (บาท/เดือน)`,
                                                                 type: 'prompt',
-                                                                inputValue: '4000',
+                                                                inputValue: '',
                                                                 onConfirm: (val) => {
                                                                     if (val) applyToFloor(f.floorNumber, 'fan', val)
                                                                     closeModal()
@@ -763,7 +780,7 @@ export default function SetupDormPage() {
                                                                 title: 'ระบุราคา (แอร์)',
                                                                 description: `ระบุราคาสำหรับห้องแอร์ทั้งชั้น ${f.floorNumber} (บาท/เดือน)`,
                                                                 type: 'prompt',
-                                                                inputValue: '5500',
+                                                                inputValue: '',
                                                                 onConfirm: (val) => {
                                                                     if (val) applyToFloor(f.floorNumber, 'air', val)
                                                                     closeModal()
@@ -839,7 +856,7 @@ export default function SetupDormPage() {
                                         { id: 'bay', name: 'กรุงศรี', color: '#FFD700', logo: 'A' },
                                         { id: 'ttb', name: 'ทีทีบี', color: '#004A99', logo: 'T' },
                                         { id: 'gsb', name: 'ออมสิน', color: '#EB1483', logo: 'G' },
-                                        { id: 'other', name: 'อื่นๆ', color: '#9CA3AF', logo: '?' },
+                                        { id: 'promptpay', name: 'PromptPay', color: '#113566', logo: 'P' },
                                     ].map((bank) => (
                                         <button
                                             key={bank.id}
