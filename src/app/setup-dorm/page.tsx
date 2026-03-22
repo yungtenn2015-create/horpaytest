@@ -970,7 +970,7 @@ export default function SetupDormPage() {
 
                 {/* ── Footer ── */}
                 <p className="text-center text-[10px] text-gray-400 py-6 border-t border-gray-50">
-                    © 2025 HORPAY — ระบบจัดการหอพักอัจฉริยะ
+                    © 2026 HORPAY — ระบบจัดการหอพักอัจฉริยะ
                 </p>
             </div>
 

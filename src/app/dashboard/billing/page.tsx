@@ -321,7 +321,13 @@ function BillingContent() {
                 .select()
                 .single()
 
-            if (billError) throw billError
+            if (billError) {
+                // Handle duplicate key error specially
+                if (billError.code === '23505') {
+                    throw new Error('ไม่สามารถออกบิลซ้ำได้: ผู้เช่าคนนี้มีบิลในห้องนี้/เดือนนี้อยู่แล้ว หากต้องการออกใหม่กรุณาลบบิลเดิมออกก่อน')
+                }
+                throw billError
+            }
 
             // 2. Call LINE Notification API if tenant has LINE linked
             // 2. Call LINE Notification API if tenant has LINE linked AND toggle is ON

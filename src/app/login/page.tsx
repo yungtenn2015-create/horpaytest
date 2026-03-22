@@ -145,7 +145,7 @@ export default function LoginPage() {
                     </div>
 
                     {/* Forgot password */}
-                    <div 
+                    <div
                         onClick={() => router.push('/forgot-password')}
                         className="text-xs text-green-700 font-bold underline cursor-pointer hover:text-green-800 transition-colors text-right"
                     >
@@ -186,7 +186,7 @@ export default function LoginPage() {
 
                     {/* Footer */}
                     <p className="text-center text-xs text-gray-400 mt-auto pt-8">
-                        © 2025 HORPAY — ระบบจัดการหอพักอัจฉริยะ
+                        © 2026 HORPAY — ระบบจัดการหอพักอัจฉริยะ สนใจติดต่อ 083-264-3659
                     </p>
                 </div>
             </div>

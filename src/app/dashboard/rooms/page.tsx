@@ -63,6 +63,7 @@ export default function ManageRoomsPage() {
     // Restore Modal State
     const [showRestoreModal, setShowRestoreModal] = useState(false)
     const [roomToRestore, setRoomToRestore] = useState<Room | null>(null)
+    const [postMoveRoomId, setPostMoveRoomId] = useState<string | null>(null)
 
     useEffect(() => {
         fetchData()
@@ -342,9 +343,13 @@ export default function ManageRoomsPage() {
             if (tgtUpdateError) throw tgtUpdateError
 
             setSuccessMsg(`ย้ายผู้เช่าจากห้อง ${movingRoom.room_number} ไปห้องอื่นเรียบร้อยแล้ว`)
+            setPostMoveRoomId(targetRoomId)
             setShowMoveModal(false)
             fetchData()
-            setTimeout(() => setSuccessMsg(''), 3000)
+            setTimeout(() => {
+                setSuccessMsg('')
+                setPostMoveRoomId(null)
+            }, 10000) // Keep it longer to let user click the button
         } catch (err: any) {
             setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการย้ายห้อง')
         } finally {
@@ -399,9 +404,19 @@ export default function ManageRoomsPage() {
                         )}
 
                         {successMsg && (
-                            <div className="bg-green-50 border-2 border-green-500 text-green-600 text-[11px] font-black p-4 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 flex items-center gap-2">
-                                <CheckIcon className="w-4 h-4 shrink-0" />
-                                {successMsg}
+                            <div className="bg-green-50 border-2 border-green-500 text-green-600 text-[11px] font-black p-4 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 flex flex-col gap-3">
+                                <div className="flex items-center gap-2">
+                                    <CheckIcon className="w-4 h-4 shrink-0" />
+                                    {successMsg}
+                                </div>
+                                {postMoveRoomId && (
+                                    <button
+                                        onClick={() => router.push(`/dashboard/meter?roomId=${postMoveRoomId}`)}
+                                        className="bg-green-600 text-white px-4 py-2 rounded-xl text-[10px] font-black w-fit hover:bg-green-700 transition-all shadow-md shadow-green-100"
+                                    >
+                                        ไปจดมิเตอร์ห้องใหม่ทันที
+                                    </button>
+                                )}
                             </div>
                         )}
 

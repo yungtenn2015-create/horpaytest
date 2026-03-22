@@ -125,7 +125,7 @@ export default function ForgotPasswordPage() {
                     {/* Back to Login Link */}
                     {!success && (
                         <div className="text-center mt-auto pb-4">
-                            <span 
+                            <span
                                 onClick={() => router.push('/login')}
                                 className="text-sm text-green-700 font-bold underline cursor-pointer"
                             >
@@ -136,7 +136,7 @@ export default function ForgotPasswordPage() {
 
                     {/* Footer */}
                     <p className="text-center text-[10px] text-gray-400 pt-6">
-                        © 2025 HORPAY — ระบบจัดการหอพักอัจฉริยะ
+                        © 2026 HORPAY — ระบบจัดการหอพักอัจฉริยะ
                     </p>
                 </div>
             </div>

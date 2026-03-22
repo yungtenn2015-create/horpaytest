@@ -280,7 +280,7 @@ export default function RegisterPage() {
 
                     {/* Footer */}
                     <p className="text-center text-[10px] text-gray-400 mt-auto pt-6">
-                        © 2025 HORPAY — ระบบจัดการหอพักอัจฉริยะ
+                        © 2026 HORPAY — ระบบจัดการหอพักอัจฉริยะ
                     </p>
                 </div>
             </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 
@@ -248,21 +248,24 @@ export default function DashboardPage() {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    useEffect(() => {
-        async function fetchData() {
-            setLoading(true)
-            const supabase = createClient()
+    const refreshDashboard = useCallback(async (isInitial = false) => {
+        if (isInitial) setLoading(true);
+        else setFetchingOverview(true);
 
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) {
-                router.push('/login')
-                return
-            }
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+            router.push('/login');
+            return;
+        }
 
-            const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Owner'
-            setUserName(name)
-            setUserInitial(name.charAt(0).toUpperCase())
+        const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Owner';
+        setUserName(name);
+        setUserInitial(name.charAt(0).toUpperCase());
 
+        try {
+            console.log("Refreshing Dashboard Data...");
             // 1. Get Latest Dorm
             const { data: dormsData, error: dormError } = await supabase
                 .from('dorms')
@@ -270,187 +273,140 @@ export default function DashboardPage() {
                 .eq('owner_id', user.id)
                 .is('deleted_at', null)
                 .order('created_at', { ascending: false })
-                .limit(1)
+                .limit(1);
 
-            if (dormError) setDbError(prev => prev + ' [Dorm Error: ' + dormError.message + ']')
-
-            if (dormsData && dormsData.length > 0) {
-                setDorm(dormsData[0])
-
-                // 2. Get Rooms
-                const { data: roomsData, error: roomsError } = await supabase
-                    .from('rooms')
-                    .select('*, tenants(name, phone, line_user_id, status)')
-                    .eq('dorm_id', dormsData[0].id)
-                    .order('room_number', { ascending: true })
-
-                console.log("Rooms fetched:", roomsData, "Error:", roomsError)
-                if (roomsError) {
-                    setDbError(prev => prev + ' [Rooms Error: ' + roomsError.message + ']')
-                }
-
-                if (roomsData) {
-                    const activeRooms = roomsData.filter(r => r.deleted_at === null)
-                    setRooms(activeRooms)
-
-                    // 3. Get Pending Bills
-                    const { data: billsData, error: billsError } = await supabase
-                        .from('bills')
-                        .select('room_id')
-                        .in('room_id', activeRooms.map(r => r.id))
-                        .in('status', ['unpaid', 'overdue'])
-
-                    const pendingIdsSet = new Set(billsData?.map(b => b.room_id) || [])
-                    setPendingRoomIds(pendingIdsSet)
-
-                    setStats({
-                        total: activeRooms.length,
-                        occupied: activeRooms.filter(r => r.status === 'occupied').length,
-                        vacant: activeRooms.filter(r => r.status === 'available').length,
-                        pendingPayments: pendingIdsSet.size
-                    })
-
-                    // 4. Get Settings
-                    const { data: settings } = await supabase
-                        .from('dorm_settings')
-                        .select('*')
-                        .eq('dorm_id', dormsData[0].id)
-                        .single()
-
-                    if (settings) {
-                        setSettingsData({
-                            bank_name: settings.bank_name || '',
-                            bank_account_no: settings.bank_account_no || '',
-                            bank_account_name: settings.bank_account_name || '',
-                            billing_day: settings.billing_day || 30,
-                            payment_due_day: settings.payment_due_day || 5
-                        })
-                    }
-
-                    // 5. Get LINE Config (Safely)
-                    try {
-                        const { data: lineOa } = await supabase
-                            .from('line_oa_configs')
-                            .select('*')
-                            .eq('dorm_id', dormsData[0].id)
-                            .maybeSingle()
-
-                        if (lineOa) {
-                            setLineConfig({
-                                channel_id: lineOa.channel_id || '',
-                                channel_secret: lineOa.channel_secret || '',
-                                access_token: lineOa.access_token || '',
-                                owner_line_user_id: lineOa.owner_line_user_id || ''
-                            })
-                        }
-                    } catch (lineErr) {
-                        console.error("LINE Config Error:", lineErr)
-                        // Don't set dbError here to avoid blocking the whole UI
-                    }
-
-                    // 5. Set Dorm Data for Settings Tab
-                    setDormData({
-                        name: dormsData[0].name || '',
-                        address: dormsData[0].address || '',
-                        contact_number: dormsData[0].contact_number || ''
-                    })
-                }
-            } else {
-                router.push('/setup-dorm')
+            if (dormError) throw dormError;
+            if (!dormsData || dormsData.length === 0) {
+                router.push('/setup-dorm');
+                return;
             }
-            setLoading(false)
-        }
 
-        fetchData()
-    }, [router])
+            const currentDorm = dormsData[0];
+            setDorm(currentDorm);
 
-    useEffect(() => {
-        if (activeTab === 'stats' && dorm?.id) {
-            fetchOverviewData(dorm.id)
-        }
-    }, [activeTab, dorm])
-
-    async function fetchOverviewData(dormId: string) {
-        setFetchingOverview(true)
-        const supabase = createClient()
-        const now = new Date()
-
-        // Start of current month
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-        // Last 6 months range
-        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString()
-
-        try {
-            // 1. Current Month Bills
-            const { data: monthBills } = await supabase
-                .from('bills')
-                .select('*')
-                .eq('dorm_id', dormId)
-                .gte('period_start', startOfMonth)
+            // 2. Get Rooms & Tenants
+            const { data: roomsData, error: roomsError } = await supabase
+                .from('rooms')
+                .select('*, tenants(id, name, phone, line_user_id, status)')
+                .eq('dorm_id', currentDorm.id)
                 .is('deleted_at', null)
+                .order('room_number', { ascending: true });
 
-            // 2. Historical Revenue (last 6 months - PAID)
+            if (roomsError) throw roomsError;
+            if (!roomsData) return;
+            const activeRooms = roomsData;
+            setRooms(activeRooms);
+
+            // Get IDs of active tenants
+            const activeTenantIds = activeRooms
+                .flatMap(r => r.tenants || [])
+                .filter(t => t.status === 'active')
+                .map(t => t.id);
+
+            console.log("Active Tenants:", activeTenantIds.length);
+
+            // 3. Fetch Detailed Overview Stats
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+            const sixMonthsAgoDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+            const historyDateStr = `${sixMonthsAgoDate.getFullYear()}-${String(sixMonthsAgoDate.getMonth() + 1).padStart(2, '0')}-01`;
+
+            console.log("Fetching bills for month >= ", dateStr);
+
+            // Current Month Bills
+            const { data: monthBills, error: billsErr } = await supabase
+                .from('bills')
+                .select('*, utilities(*)')
+                .in('room_id', activeRooms.map(r => r.id))
+                .gte('billing_month', dateStr);
+
+            if (billsErr) throw billsErr;
+
+            // Historical Revenue (Paid)
             const { data: historyBills } = await supabase
                 .from('bills')
-                .select('total_amount, period_start')
-                .eq('dorm_id', dormId)
+                .select('total_amount, billing_month')
+                .in('room_id', activeRooms.map(r => r.id))
                 .eq('status', 'paid')
-                .gte('period_start', sixMonthsAgo)
-                .is('deleted_at', null)
+                .gte('billing_month', historyDateStr);
 
-            // 3. Occupancy
-            const { count: totalRooms } = await supabase
-                .from('rooms')
-                .select('*', { count: 'exact', head: true })
-                .eq('dorm_id', dormId)
-                .is('deleted_at', null)
-
-            const { count: occupiedRooms } = await supabase
-                .from('rooms')
-                .select('*', { count: 'exact', head: true })
-                .eq('dorm_id', dormId)
-                .eq('status', 'occupied')
-                .is('deleted_at', null)
-
-            let collected = 0
-            let pending = 0
-            let water = 0
-            let waterAmt = 0
-            let electric = 0
-            let electricAmt = 0
-            let counts = { paid: 0, waiting_verify: 0, unpaid: 0 }
+            // Process Current Month Stats - Unified Room-Centric Logic
+            let collected = 0;
+            let pending = 0;
+            let water = 0;
+            let waterAmt = 0;
+            let electric = 0;
+            let electricAmt = 0;
+            let counts = { paid: 0, waiting_verify: 0, unpaid: 0 };
+            const pendingIdsSet = new Set<string>();
+            
+            // Map to track the "Best" status for each room this month
+            // Priority: paid > waiting_verify > unpaid
+            const roomBestStatus = new Map<string, string>();
 
             monthBills?.forEach(b => {
-                if (b.status === 'paid') {
-                    collected += (b.total_amount || 0)
-                    counts.paid++
-                } else if (b.status === 'waiting_verify') {
-                    pending += (b.total_amount || 0)
-                    counts.waiting_verify++
+                const totalAmt = Number(b.total_amount) || 0;
+                const s = String(b.status || '').toLowerCase().trim();
+                const currentBest = roomBestStatus.get(b.room_id);
+
+                if (s === 'paid') {
+                    roomBestStatus.set(b.room_id, 'paid');
+                    collected += totalAmt;
+                } else if (s === 'pending' || s === 'waiting_verify') {
+                    if (currentBest !== 'paid') {
+                        roomBestStatus.set(b.room_id, 'waiting_verify');
+                    }
+                    pending += totalAmt;
                 } else {
-                    pending += (b.total_amount || 0)
-                    counts.unpaid++
+                    if (currentBest !== 'paid' && currentBest !== 'waiting_verify') {
+                        roomBestStatus.set(b.room_id, 'unpaid');
+                    }
+                    pending += totalAmt;
                 }
 
-                // Units calculation
-                water += (b.water_curr - b.water_prev) || 0
-                waterAmt += (b.water_amount || 0)
-                electric += (b.electric_curr - b.electric_prev) || 0
-                electricAmt += (b.electric_amount || 0)
-            })
+                if (b.utilities) {
+                    water += (b.utilities.curr_water_meter - b.utilities.prev_water_meter) || 0;
+                    electric += (b.utilities.curr_electric_meter - b.utilities.prev_electric_meter) || 0;
+                    waterAmt += Number(b.utilities.water_price) || 0;
+                    electricAmt += Number(b.utilities.electric_price) || 0;
+                }
+            });
+
+            // Finalize counts and pending IDs based on room status
+            roomBestStatus.forEach((status, roomId) => {
+                if (status === 'paid') {
+                    counts.paid++;
+                } else if (status === 'waiting_verify') {
+                    counts.waiting_verify++;
+                    pendingIdsSet.add(roomId);
+                } else {
+                    counts.unpaid++;
+                    pendingIdsSet.add(roomId);
+                }
+            });
+
+            console.log("Room Stats (Grouped):", counts);
+            setPendingRoomIds(pendingIdsSet);
+
+            setStats({
+                total: activeRooms.length,
+                occupied: activeRooms.filter(r => r.status === 'occupied').length,
+                vacant: activeRooms.filter(r => r.status === 'available').length,
+                pendingPayments: pendingIdsSet.size
+            });
 
             // Process History
-            const historyMap = new Map<string, number>()
+            const historyMap = new Map();
             historyBills?.forEach(b => {
-                const m = new Date(b.period_start).toLocaleDateString('th-TH', { month: 'short' })
-                historyMap.set(m, (historyMap.get(m) || 0) + (b.total_amount || 0))
-            })
+                const m = new Date(b.billing_month).toLocaleDateString('th-TH', { month: 'short' });
+                historyMap.set(m, (historyMap.get(m) || 0) + Number(b.total_amount || 0));
+            });
 
-            const historicalRevenue = []
+            const historicalRevenue = [];
             for (let i = 5; i >= 0; i--) {
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-                const m = d.toLocaleDateString('th-TH', { month: 'short' })
-                historicalRevenue.push({ month: m, amount: historyMap.get(m) || 0 })
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const m = d.toLocaleDateString('th-TH', { month: 'short' });
+                historicalRevenue.push({ month: m, amount: historyMap.get(m) || 0 });
             }
 
             setOverviewData({
@@ -458,21 +414,76 @@ export default function DashboardPage() {
                 collectedRevenue: collected,
                 pendingRevenue: pending,
                 projectedRevenue: collected + pending,
-                occupancyRate: totalRooms ? Math.round((occupiedRooms || 0) / totalRooms * 100) : 0,
+                occupancyRate: activeRooms.length ? Math.round(activeRooms.filter(r => r.status === 'occupied').length / activeRooms.length * 100) : 0,
                 waterUnits: water,
                 waterAmount: waterAmt,
                 electricityUnits: electric,
                 electricityAmount: electricAmt,
                 billStatusCounts: counts,
                 historicalRevenue
-            })
+            });
+
+            // 5. Get Settings & LINE Config (Only once or if needed)
+            if (isInitial) {
+                const { data: settings } = await supabase
+                    .from('dorm_settings')
+                    .select('*')
+                    .eq('dorm_id', currentDorm.id)
+                    .single();
+
+                if (settings) {
+                    setSettingsData({
+                        bank_name: settings.bank_name || '',
+                        bank_account_no: settings.bank_account_no || '',
+                        bank_account_name: settings.bank_account_name || '',
+                        billing_day: settings.billing_day || 30,
+                        payment_due_day: settings.payment_due_day || 5
+                    });
+                }
+
+                try {
+                    const { data: lineOa } = await supabase
+                        .from('line_oa_configs')
+                        .select('*')
+                        .eq('dorm_id', currentDorm.id)
+                        .maybeSingle();
+
+                    if (lineOa) {
+                        setLineConfig({
+                            channel_id: lineOa.channel_id || '',
+                            channel_secret: lineOa.channel_secret || '',
+                            access_token: lineOa.access_token || '',
+                            owner_line_user_id: lineOa.owner_line_user_id || ''
+                        });
+                    }
+                } catch (e) {}
+
+                setDormData({
+                    name: currentDorm.name || '',
+                    address: currentDorm.address || '',
+                    contact_number: currentDorm.contact_number || ''
+                });
+            }
 
         } catch (err) {
-            console.error('Overview Data Error:', err)
+            console.error("Dashboard Refresh Error:", err);
+            setDbError(prev => prev + " [Refresh Error]");
         } finally {
-            setFetchingOverview(false)
+            setLoading(false);
+            setFetchingOverview(false);
         }
-    }
+    }, [router]);
+
+    useEffect(() => {
+        refreshDashboard(true);
+    }, [refreshDashboard]);
+
+    // Re-fetch when switching tabs to ensure freshness
+    useEffect(() => {
+        if (activeTab === 'overview' || activeTab === 'stats' || activeTab === 'rooms') {
+            refreshDashboard(false);
+        }
+    }, [activeTab, refreshDashboard]);
 
     async function handleLogout() {
         const supabase = createClient()
@@ -776,16 +787,21 @@ export default function DashboardPage() {
 
                                 <div className="grid gap-3">
                                     {rooms.filter(r => pendingRoomIds.has(r.id)).length > 0 ? (
-                                        rooms.filter(r => pendingRoomIds.has(r.id)).slice(0, 3).map((room) => (
+                                        rooms.filter(r => pendingRoomIds.has(r.id)).slice(0, 5).map((room) => (
                                             <div
                                                 key={room.id}
-                                                className="bg-white h-[76px] px-5 rounded-2xl border-2 border-red-50 shadow-sm flex items-center justify-between group hover:border-red-300 hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                                                className="bg-white px-5 py-4 rounded-2xl border-2 border-red-50 shadow-sm flex items-center justify-between group hover:border-red-300 hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                                             >
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-3 h-3 rounded-full bg-red-500 shadow-sm shadow-red-200" />
+                                                    <div className="relative w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-500 overflow-hidden">
+                                                        <div className="absolute inset-0 bg-red-500/5" />
+                                                        <HomeIconSolid className="w-5 h-5" />
+                                                    </div>
                                                     <div>
-                                                        <p className="text-[10px] font-black text-gray-400 uppercase leading-none mb-1">ห้อง</p>
-                                                        <h3 className="text-sm font-black text-gray-800 tracking-tight">{room.room_number}</h3>
+                                                        <p className="text-[10px] font-black text-gray-400 uppercase leading-none mb-1.5">ห้อง {room.room_number}</p>
+                                                        <h3 className="text-sm font-black text-gray-800 tracking-tight leading-none">
+                                                            {room.tenants?.[0]?.name || 'ไม่พบรายชื่อ'}
+                                                        </h3>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">

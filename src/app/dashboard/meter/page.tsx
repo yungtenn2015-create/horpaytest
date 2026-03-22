@@ -164,8 +164,19 @@ function MeterReadingContent() {
             if (roomsData) {
                 setRooms(roomsData)
                 if (roomsData.length > 0) {
-                    setSelectedFloor(roomsData[0].floor)
-                    setSelectedRoomId(roomsData[0].id)
+                    const queryRoomId = searchParams.get('roomId')
+                    const roomExists = roomsData.some(r => r.id === queryRoomId)
+                    
+                    if (queryRoomId && roomExists) {
+                        setSelectedRoomId(queryRoomId)
+                        setViewMode('single')
+                        // Find floor of this room
+                        const r = roomsData.find(x => x.id === queryRoomId)
+                        if (r) setSelectedFloor(r.floor)
+                    } else {
+                        setSelectedFloor(roomsData[0].floor)
+                        setSelectedRoomId(roomsData[0].id)
+                    }
 
                     // 3. Fetch previous month readings (we just get the LATEST reading per room)
                     // We can do this efficiently by getting all utilities for these rooms, ordered by date desc, 
