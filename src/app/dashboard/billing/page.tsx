@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import { format, parse } from 'date-fns'
@@ -26,7 +26,7 @@ interface Room {
     base_price: number;
 }
 
-export default function BillingPage() {
+function BillingContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [loading, setLoading] = useState(true)
@@ -920,5 +920,17 @@ export default function BillingPage() {
                 )}
             </div>
         </div>
+    )
+}
+
+export default function BillingPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+            </div>
+        }>
+            <BillingContent />
+        </Suspense>
     )
 }
