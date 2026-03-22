@@ -130,6 +130,78 @@ export default function DashboardPage() {
     })
     const [fetchingOverview, setFetchingOverview] = useState(false)
 
+    // Change Password States
+    const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
+    const [isSubmittingPassword, setIsSubmittingPassword] = useState(false)
+    const [passwordError, setPasswordError] = useState('')
+    const [passwordSuccess, setPasswordSuccess] = useState('')
+    const [passwordData, setPasswordData] = useState({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    })
+
+    const handlePasswordChange = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setPasswordError('')
+        setPasswordSuccess('')
+
+        if (!passwordData.oldPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+            setPasswordError('กรุณากรอกข้อมูลให้ครบถ้วน')
+            return
+        }
+
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            setPasswordError('รหัสผ่านใหม่ไม่ตรงกัน')
+            return
+        }
+
+        if (passwordData.newPassword.length < 6) {
+            setPasswordError('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร')
+            return
+        }
+
+        setIsSubmittingPassword(true)
+        const supabase = createClient()
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user || !user.email) throw new Error('ไม่พบข้อมูลผู้ใช้')
+
+            // Re-authenticate to verify old password
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email: user.email,
+                password: passwordData.oldPassword
+            })
+
+            if (signInError) {
+                setPasswordError('รหัสผ่านเดิมไม่ถูกต้อง')
+                setIsSubmittingPassword(false)
+                return
+            }
+
+            // Update user with new password
+            const { error: updateError } = await supabase.auth.updateUser({
+                password: passwordData.newPassword
+            })
+
+            if (updateError) {
+                setPasswordError(updateError.message)
+            } else {
+                setPasswordSuccess('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว!')
+                setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' })
+                setTimeout(() => {
+                    setIsChangePasswordOpen(false)
+                    setPasswordSuccess('')
+                }, 2000)
+            }
+        } catch (err: any) {
+            setPasswordError(err.message || 'เกิดข้อผิดพลาดบางอย่าง')
+        } finally {
+            setIsSubmittingPassword(false)
+        }
+    }
+
     // LINE Settings Helpers
     const [showLineConfig, setShowLineConfig] = useState(false)
     const [isTestingConnection, setIsTestingConnection] = useState(false)
@@ -572,6 +644,22 @@ export default function DashboardPage() {
                                                                 <ChatBubbleLeftRightIcon className="w-5 h-5 text-gray-400 group-hover:text-green-600 stroke-[2.5]" />
                                                             </div>
                                                             ตั้งค่า LINE Notification
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => {
+                                                                setIsMenuOpen(false);
+                                                                setIsChangePasswordOpen(true);
+                                                                setPasswordError('');
+                                                                setPasswordSuccess('');
+                                                                setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+                                                            }}
+                                                            className="w-full flex items-center gap-4 px-4 py-4 text-left text-gray-700 hover:bg-green-50 rounded-2xl transition-all font-bold text-[14.5px] group"
+                                                        >
+                                                            <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center group-hover:bg-white group-hover:shadow-sm transition-all">
+                                                                <LockClosedIcon className="w-5 h-5 text-gray-400 group-hover:text-green-600 stroke-[2.5]" />
+                                                            </div>
+                                                            เปลี่ยนรหัสผ่าน
                                                         </button>
 
                                                         <div className="h-px bg-gray-100/60 mx-4 my-2" />
@@ -1397,7 +1485,7 @@ export default function DashboardPage() {
                 )}
 
                 {/* ── Modern Floating Bottom Navigation ── */}
-                <div className="absolute bottom-0 w-full bg-white border-t border-gray-100 px-2 py-4 pb-6 flex justify-around items-center z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.04)] rounded-b-[3rem]">
+                <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white/80 backdrop-blur-xl border-t border-gray-100 px-2 py-4 pb-8 flex justify-around items-center z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] rounded-t-[2.5rem] sm:rounded-b-[3rem]">
                     {navItems.map((item) => {
                         const isActive = activeTab === item.id;
                         const Icon = isActive ? item.solidIcon : item.outlineIcon;
@@ -1405,22 +1493,138 @@ export default function DashboardPage() {
                             <button
                                 key={item.id}
                                 onClick={() => setActiveTab(item.id)}
-                                className={`relative flex flex-col items-center gap-1.5 w-[72px] transition-all duration-300 ${isActive ? 'text-green-600 scale-105' : 'text-gray-400 hover:text-gray-600'}`}
+                                className={`relative flex flex-col items-center gap-1.5 w-[72px] transition-all duration-300 outline-none group ${isActive ? 'text-green-600 -translate-y-1' : 'text-gray-400 hover:text-gray-600'}`}
                             >
-                                <div className="relative">
+                                <div className="relative flex items-center justify-center">
                                     {isActive && (
-                                        <div className="absolute inset-0 bg-green-400 opacity-20 blur-md rounded-full scale-[1.3]" />
+                                        <div className="absolute inset-0 bg-green-100 rounded-2xl scale-[1.6] blur-sm animate-in zoom-in duration-300" />
                                     )}
-                                    <Icon className="w-[26px] h-[26px] relative z-10" />
+                                    <Icon className={`w-[24px] h-[24px] relative z-10 transition-transform ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
                                 </div>
-                                <span className={`text-[10px] font-bold tracking-tight ${isActive ? 'text-green-600' : 'text-gray-400'}`}>
+                                <span className={`text-[10px] font-black tracking-tight relative z-10 ${isActive ? 'text-green-600' : 'text-gray-400'}`}>
                                     {item.name}
                                 </span>
+                                {isActive && (
+                                    <div className="absolute -bottom-2 w-1 h-1 bg-green-600 rounded-full shadow-[0_0_8px_rgba(22,163,74,0.6)]" />
+                                )}
                             </button>
                         );
                     })}
                 </div>
-            </div>
-        </div>
-    );
+ 
+                 {/* ── Change Password Modal ── */}
+                 {isChangePasswordOpen && (
+                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                         <div 
+                             className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
+                             onClick={() => !isSubmittingPassword && setIsChangePasswordOpen(false)}
+                         />
+                         <div className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 fade-in duration-300">
+                             {/* Header */}
+                             <div className="bg-gradient-to-br from-green-500 to-green-600 p-8 text-white relative">
+                                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                                 <h3 className="text-2xl font-black tracking-tight flex items-center gap-3">
+                                     <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
+                                         <LockClosedIcon className="w-6 h-6" />
+                                     </div>
+                                     เปลี่ยนรหัสผ่าน
+                                 </h3>
+                                 <p className="text-green-100 font-bold text-sm mt-2 opacity-80">เพื่อความปลอดภัยของข้อมูลบัญชีคุณ</p>
+                             </div>
+ 
+                             <form onSubmit={handlePasswordChange} className="p-8 space-y-6">
+                                 <div className="space-y-4">
+                                     <div className="space-y-1.5">
+                                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">รหัสผ่านเดิม</label>
+                                         <div className="relative group/field">
+                                             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within/field:text-green-500 transition-colors">
+                                                 <KeyIcon className="w-5 h-5" />
+                                             </div>
+                                             <input
+                                                 required
+                                                 type="password"
+                                                 value={passwordData.oldPassword}
+                                                 onChange={(e) => setPasswordData({ ...passwordData, oldPassword: e.target.value })}
+                                                 className="w-full h-14 bg-gray-50 border-2 border-gray-50 rounded-2xl pl-12 pr-4 font-bold text-gray-800 focus:bg-white focus:border-green-500 transition-all outline-none"
+                                                 placeholder="••••••••"
+                                             />
+                                         </div>
+                                     </div>
+ 
+                                     <div className="h-px bg-gray-100 mx-4" />
+ 
+                                     <div className="space-y-1.5">
+                                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">รหัสผ่านใหม่</label>
+                                         <div className="relative group/field">
+                                             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within/field:text-green-500 transition-colors">
+                                                 <LockClosedIcon className="w-5 h-5" />
+                                             </div>
+                                             <input
+                                                 required
+                                                 minLength={6}
+                                                 type="password"
+                                                 value={passwordData.newPassword}
+                                                 onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                                                 className="w-full h-14 bg-gray-50 border-2 border-gray-50 rounded-2xl pl-12 pr-4 font-bold text-gray-800 focus:bg-white focus:border-green-500 transition-all outline-none"
+                                                 placeholder="รหัสใหม่ (อย่างน้อย 6 ตัว)"
+                                             />
+                                         </div>
+                                     </div>
+ 
+                                     <div className="space-y-1.5">
+                                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">ยืนยันรหัสผ่านใหม่</label>
+                                         <div className="relative group/field">
+                                             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within/field:text-green-500 transition-colors">
+                                                 <CheckCircleIcon className="w-5 h-5" />
+                                             </div>
+                                             <input
+                                                 required
+                                                 type="password"
+                                                 value={passwordData.confirmPassword}
+                                                 onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                                                 className="w-full h-14 bg-gray-50 border-2 border-gray-50 rounded-2xl pl-12 pr-4 font-bold text-gray-800 focus:bg-white focus:border-green-500 transition-all outline-none"
+                                                 placeholder="ยืนยันรหัสใหม่อีกครั้ง"
+                                             />
+                                         </div>
+                                     </div>
+                                 </div>
+ 
+                                 {(passwordError || passwordSuccess) && (
+                                     <div className={`p-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top-2 duration-300 ${passwordSuccess ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                                         {passwordSuccess ? <CheckCircleIcon className="w-5 h-5" /> : <BellIcon className="w-5 h-5" />}
+                                         <span className="text-xs font-black">{passwordError || passwordSuccess}</span>
+                                     </div>
+                                 )}
+ 
+                                 <div className="flex gap-3 pt-2">
+                                     <button
+                                         type="button"
+                                         disabled={isSubmittingPassword}
+                                         onClick={() => setIsChangePasswordOpen(false)}
+                                         className="flex-1 h-14 rounded-2xl font-black text-gray-400 hover:bg-gray-50 transition-all active:scale-95 disabled:opacity-50"
+                                     >
+                                         ยกเลิก
+                                     </button>
+                                     <button
+                                         type="submit"
+                                         disabled={isSubmittingPassword}
+                                         className="flex-[2] h-14 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black shadow-lg shadow-green-100 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                                     >
+                                         {isSubmittingPassword ? (
+                                             <>
+                                                 <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                                                 กำลังบันทึก...
+                                             </>
+                                         ) : (
+                                             <>บันทึกรหัสผ่านใหม่</>
+                                         )}
+                                     </button>
+                                 </div>
+                             </form>
+                         </div>
+                     </div>
+                 )}
+             </div>
+         </div>
+     );
 }
