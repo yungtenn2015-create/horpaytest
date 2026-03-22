@@ -3,12 +3,12 @@ import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase Admin (since webhook needs to bypass RLS to write line_user_id)
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function POST(req: Request) {
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
   try {
     const body = await req.text();
     const signature = req.headers.get('x-line-signature');
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     // Process Events
     const events = jsonBody.events;
     for (const event of events) {
-      await handleEvent(event, config);
+      await handleEvent(event, config, supabaseAdmin);
     }
 
     return NextResponse.json({ message: 'OK' });
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   }
 }
 
-async function handleEvent(event: any, config: any) {
+async function handleEvent(event: any, config: any, supabaseAdmin: any) {
   const { type, source, replyToken } = event;
   const lineUserId = source.userId;
 
