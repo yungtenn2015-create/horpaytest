@@ -122,6 +122,11 @@ export default function DashboardPage() {
 
             const data = await response.json();
             if (data.success) {
+                // Auto-fill channel_id (Bot User ID) from data
+                setLineConfig(prev => ({
+                    ...prev,
+                    channel_id: data.bot.userId
+                }));
                 setTestResult({ success: true, message: `เชื่อมต่อสำเร็จ! (Bot: ${data.bot.displayName})` });
             } else {
                 setTestResult({ success: false, message: data.error || 'การเชื่อมต่อล้มเหลว' });
@@ -869,13 +874,13 @@ export default function DashboardPage() {
                                                 <div className="h-px bg-gray-100/50 my-2" />
 
                                                 <div className="space-y-2">
-                                                    <label className="text-[13px] font-black text-gray-500 ml-1">Channel ID</label>
+                                                    <label className="text-[13px] font-black text-gray-500 ml-1">Bot User ID (พบอัตโนมัติ)</label>
                                                     <input
+                                                        readOnly
                                                         type="text"
                                                         value={lineConfig.channel_id}
-                                                        onChange={(e) => setLineConfig({ ...lineConfig, channel_id: e.target.value })}
-                                                        className="w-full h-14 bg-white border-2 border-gray-50 rounded-2xl px-5 font-bold text-gray-800 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all outline-none shadow-sm"
-                                                        placeholder="200xxxxxxx"
+                                                        className="w-full h-14 bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 font-bold text-gray-500 cursor-not-allowed outline-none shadow-sm"
+                                                        placeholder="จะปรากฏเมื่อทดสอบสำเร็จ..."
                                                     />
                                                 </div>
                                                 <div className="space-y-2">

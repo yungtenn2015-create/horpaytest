@@ -9,6 +9,7 @@ const supabaseAdmin = createClient(
 export async function POST(req: Request) {
   try {
     const { billId } = await req.json();
+    console.log('Sending bill for ID:', billId);
 
     if (!billId) {
       return NextResponse.json({ error: 'billId is required' }, { status: 400 });
@@ -24,37 +25,54 @@ export async function POST(req: Request) {
         utilities:utility_id (water_price, electric_price)
       `)
       .eq('id', billId)
-      .single();
+      .maybeSingle();
 
-    if (billError || !bill) {
+    if (billError) {
+      console.error('Database error fetching bill:', billError);
+      return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    }
+
+    if (!bill) {
+      console.error('Bill not found for ID:', billId);
       return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
     }
 
+    console.log('Bill data fetched:', JSON.stringify(bill, null, 2));
+
     if (!bill.tenants?.line_user_id) {
+       console.error('Tenant has no LINE linked for bill:', billId);
        return NextResponse.json({ error: 'Tenant has no LINE linked' }, { status: 400 });
     }
 
     // 2. Fetch Dorm & LINE Config
-    const { data: dormConfig } = await supabaseAdmin
+    const { data: dormConfig, error: configError } = await supabaseAdmin
       .from('line_oa_configs')
       .select('*')
       .eq('dorm_id', bill.rooms.dorm_id)
-      .single();
+      .maybeSingle();
+
+    if (configError) {
+        console.error('Database error fetching LINE config:', configError);
+        return NextResponse.json({ error: 'DB Error' }, { status: 500 });
+    }
 
     if (!dormConfig) {
+      console.error('LINE OA not configured for dorm:', bill.rooms.dorm_id);
       return NextResponse.json({ error: 'LINE OA not configured for this dorm' }, { status: 400 });
     }
 
+    // 3. Construct Flex Message
     const { data: dorm } = await supabaseAdmin
       .from('dorms')
       .select('name')
       .eq('id', bill.rooms.dorm_id)
       .single();
 
-    // 3. Construct Flex Message
     const flexMessage = createBillFlexMessage(bill, dorm?.name || 'หอพัก');
+    console.log('Flex message constructed for room:', bill.rooms.room_number);
 
     // 4. Send via LINE Messaging API
+    console.log('Pushing to LINE User ID:', bill.tenants.line_user_id);
     const response = await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
       headers: {
@@ -68,6 +86,8 @@ export async function POST(req: Request) {
     });
 
     const result = await response.json();
+    console.log('LINE API response status:', response.status);
+    console.log('LINE API response body:', JSON.stringify(result, null, 2));
 
     // 5. Log notification
     await supabaseAdmin.from('line_notification_logs').insert({
@@ -80,7 +100,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: response.ok, result });
   } catch (error: any) {
-    console.error('Send bill error:', error);
+    console.error('Send bill error details:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
