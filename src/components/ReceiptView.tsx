@@ -54,115 +54,93 @@ const ReceiptView = forwardRef<HTMLDivElement, ReceiptViewProps>(({ data, slipUr
             ref={ref}
             className="max-w-xl mx-auto bg-white sm:rounded-[2.5rem] shadow-2xl shadow-gray-200/50 overflow-hidden relative print:shadow-none print:rounded-none"
         >
-            {/* Decoration Circles (Ticket Style) */}
-            <div className="absolute top-1/2 -left-4 w-8 h-8 bg-gray-100/50 rounded-full z-10 print:hidden" />
-            <div className="absolute top-1/2 -right-4 w-8 h-8 bg-gray-100/50 rounded-full z-10 print:hidden" />
+            {/* Header: Match LINE Flex Style */}
+            <div className="bg-[#10B981] p-8 text-center sm:p-10">
+                <p className="text-[#ECFDF5] text-sm font-bold mb-1 opacity-90 tracking-wide">
+                    {data.dormName} {data.dormPhone && `| โทร: ${data.dormPhone}`}
+                </p>
+                <h2 className="text-3xl sm:text-4xl font-black text-white leading-tight">
+                    แจ้งค่าเช่าห้อง {data.roomNumber}
+                </h2>
+            </div>
 
-            <div className="p-6 sm:p-8">
-                <div className="text-center mb-10 pt-0">
-                    <h2 className="text-2xl font-black text-gray-900 leading-tight mb-1">{data.dormName}</h2>
-                    <p className="text-[13px] text-gray-600 font-extrabold max-w-[340px] mx-auto leading-relaxed mb-4">
-                        {data.address} {data.dormPhone && `| โทร: ${data.dormPhone}`}
-                    </p>
-                    <div className="inline-flex items-center gap-2 px-6 py-2 bg-emerald-50 rounded-2xl border border-emerald-100/50">
-                        <span className="text-base font-black text-emerald-600">ใบเสร็จประจำเดือน</span>
-                        <span className="text-base font-black text-emerald-600">{data.month}</span>
-                    </div>
-                </div>
-
-                <div className="flex justify-between items-center mb-4 pb-3 border-b border-dashed border-gray-100">
+            <div className="p-6 sm:p-10">
+                {/* Billing Month & ID */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-gray-100">
                     <div>
-                        <p className="text-[12px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-1.5">เลขที่ใบเสร็จ</p>
-                        <p className="text-base font-black text-gray-800 leading-none">{data.receiptId}</p>
+                        <p className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">ประจำเดือน</p>
+                        <p className="text-lg font-black text-gray-800">{data.month}</p>
                     </div>
-                    <div className="text-right">
-                        <p className="text-[12px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-1.5">วันที่ออกบิล</p>
-                        <p className="text-base font-black text-gray-800 leading-none">{data.date}</p>
-                    </div>
-                </div>
-
-                {/* Compact Info Grid */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100 flex items-center gap-3">
-                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400 font-black text-base shadow-sm ring-1 ring-gray-100/50 flex-shrink-0">#</div>
-                        <div>
-                            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest italic leading-none mb-1">ห้องพัก</p>
-                            <p className="text-xl font-black text-gray-800 leading-none">{data.roomNumber}</p>
-                        </div>
-                    </div>
-                    <div className="bg-gray-50 rounded-2xl p-3 border border-gray-100 flex items-center gap-3 overflow-hidden">
-                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400 font-black text-base shadow-sm ring-1 ring-gray-100/50 flex-shrink-0">👤</div>
-                        <div className="truncate">
-                            <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest italic leading-none mb-1">ผู้เช่า</p>
-                            <p className="text-lg font-black text-gray-800 truncate leading-none">{data.tenantName}</p>
-                        </div>
+                    <div className="sm:text-right">
+                        <p className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">เลขที่ใบเสร็จ</p>
+                        <p className="text-sm font-bold text-gray-500">{data.receiptId}</p>
                     </div>
                 </div>
 
-                {/* Table */}
-                <div className="space-y-2 mb-4 bg-gray-50/50 rounded-3xl p-4 border border-gray-100/50">
+                {/* Tenant Name */}
+                <div className="mb-8 p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
+                    <span className="text-gray-500 font-bold">ชื่อผู้เช่า</span>
+                    <span className="text-gray-900 font-black text-lg">{data.tenantName}</span>
+                </div>
+
+                {/* Items Breakdown */}
+                <div className="space-y-4 mb-10">
                     {data.items.map((item: any, i: number) => (
-                        <div key={i} className="flex justify-between items-center py-0.5">
-                            <div>
-                                <p className="text-[15px] font-black text-gray-800">{item.name}</p>
-                                {item.detail && <p className="text-[12px] font-bold text-gray-400 mt-0.5">{item.detail}</p>}
+                        <div key={i} className="flex flex-col border-b border-gray-50 pb-4 last:border-0 last:pb-0">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-lg font-bold text-gray-700">{item.name}</span>
+                                <span className="text-lg font-black text-gray-900">฿{(Number(item.amount) || 0).toLocaleString()}</span>
                             </div>
-                            <p className="text-[15px] font-black text-gray-900">฿{(Number(item.amount) || 0).toLocaleString()}</p>
+                            {item.detail && (
+                                <p className="text-sm font-bold text-gray-400 leading-relaxed">
+                                    {item.detail.replace(' - ', ' → ')}
+                                </p>
+                            )}
                         </div>
                     ))}
                 </div>
 
-                {/* Total */}
-                <div className="bg-emerald-500 rounded-2xl p-4 mb-4 text-white shadow-xl shadow-emerald-100 flex items-center justify-between">
+                {/* Total Section */}
+                <div className="flex items-center justify-between mb-8 bg-emerald-50 rounded-3xl p-6 border-2 border-emerald-100">
                     <div>
-                        <p className="text-[12px] font-black text-emerald-100 uppercase tracking-widest mb-1">ยอดรวมสุทธิ</p>
-                        <p className="text-sm font-bold leading-tight italic opacity-95">{bahtText(Number(data.total) || 0)}</p>
+                        <p className="text-xs font-black text-emerald-600 uppercase tracking-widest mb-1">ยอดรวมทั้งสิ้น</p>
+                        <p className="text-sm font-bold text-emerald-600 italic">{bahtText(Number(data.total) || 0)}</p>
                     </div>
-                    <p className="text-3xl font-black">฿{(Number(data.total) || 0).toLocaleString()}</p>
+                    <p className="text-4xl font-black text-[#10B981]">฿{(Number(data.total) || 0).toLocaleString()}</p>
                 </div>
 
-                {/* Payment Info */}
-                <div className="bg-emerald-50/50 rounded-[2rem] p-4 border border-emerald-100 flex flex-col items-center">
-                    <p className="text-[12px] font-black text-emerald-600 uppercase tracking-widest mb-1.5">ช่องทางการชำระเงิน / โอนเข้าบัญชี</p>
-
-                    <div className="text-center mb-4">
-                        <p className="text-2xl font-black text-emerald-600 uppercase tracking-widest leading-tight mb-2">{data.bankName}</p>
-                        <h3 className="text-xl font-black text-emerald-600 tracking-tight leading-none">ชื่อบัญชี : {data.bankAccount}</h3>
-                    </div>
-
-                    <div className="w-full bg-white rounded-2xl p-4 border border-emerald-100 flex flex-col items-center shadow-sm">
-                        <p className="text-2xl font-black text-emerald-600 tracking-widest sm:text-3xl font-mono leading-none py-1">
-                            {data.bankNo}
-                        </p>
-                    </div>
+                {/* Due Date Box: Match LINE Style */}
+                <div className="bg-[#FEF2F2] rounded-2xl p-4 mb-8 text-center border border-red-100">
+                    <p className="text-[#B91C1C] font-black text-sm sm:text-base flex items-center justify-center gap-2">
+                        <span>📅</span> กำหนดชำระภายในวันที่ {data.dueDate}
+                    </p>
                 </div>
 
-                {/* Slip Proof Section (Only if slipUrl exists) */}
+                {/* Bank Details: Match LINE Style */}
+                <div className="bg-[#F9FAFB] rounded-[2rem] p-6 sm:p-8 border border-gray-100 text-center">
+                    <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">ช่องทางการชำระเงิน / โอนเข้าบัญชี</p>
+                    
+                    <p className="text-xl font-black text-gray-800 mb-1">{data.bankName}</p>
+                    <p className="text-[#10B981] text-3xl font-black tracking-wider mb-2 font-mono">{data.bankNo}</p>
+                    <p className="text-gray-500 font-bold text-sm">ชื่อบัญชี: {data.bankAccount}</p>
+                </div>
+
+                {/* Slip Proof (Keep as is but style slightly) */}
                 {slipUrl && (
-                    <div className="mt-8 pt-8 border-t border-dashed border-gray-200">
-                        <p className="text-[12px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2 justify-center">
-                            <span className="w-8 h-[1px] bg-gray-100" />
-                            หลักฐานการชำระเงิน (สลิป)
-                            <span className="w-8 h-[1px] bg-gray-100" />
-                        </p>
-                        <div className="bg-gray-50 rounded-3xl p-2 border border-gray-100 group relative overflow-hidden">
-                            <img 
-                                src={slipUrl} 
-                                alt="Payment Slip" 
-                                className="w-full h-auto rounded-2xl shadow-sm transition-transform group-hover:scale-[1.02]" 
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-gray-900/20 to-transparent pointer-events-none" />
+                    <div className="mt-12 pt-10 border-t border-dashed border-gray-200 text-center">
+                        <p className="text-xs font-black text-gray-300 uppercase tracking-[0.3em] mb-6">หลักฐานการชำระเงิน</p>
+                        <div className="max-w-xs mx-auto rounded-3xl overflow-hidden shadow-2xl border-4 border-white ring-1 ring-gray-100">
+                            <img src={slipUrl} alt="Slip" className="w-full h-auto" />
                         </div>
                     </div>
                 )}
             </div>
 
             {/* Footer Message */}
-            <div className="bg-gray-50/50 p-4 text-center border-t border-gray-100">
-                <p className="text-lg text-red-500 underline underline-offset-4 decoration-red-500">
-                    กรุณาชำระเงินภายในวันที่ <span className="text-lg text-red-500 underline underline-offset-4 decoration-red-500">{data.dueDate}</span>
+            <div className="py-6 text-center bg-gray-50/50 border-t border-gray-100">
+                <p className="text-[10px] font-black text-gray-300 italic uppercase tracking-widest">
+                    Powered by HorPay - Smart Dorm Management
                 </p>
-                <p className="text-[10px] font-bold text-gray-300 italic uppercase">Powered by HorPay - Smart Dorm Management</p>
             </div>
         </div>
     )

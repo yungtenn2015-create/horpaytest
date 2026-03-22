@@ -299,24 +299,14 @@ export default function ReceiptPage() {
 
                 {/* Verification Section */}
                 {billStatus === 'waiting_verify' && (
-                    <div className="grid grid-cols-2 gap-4">
-                        <button
-                            onClick={() => handleUpdateStatus('paid')}
-                            disabled={verifying}
-                            className="h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-blue-100 transition-all active:scale-[0.98]"
-                        >
-                            <CheckBadgeIcon className="w-6 h-6" />
-                            {verifying ? 'กำลังบันทึก...' : 'อนุมัติ / รับเงิน'}
-                        </button>
-                        <button
-                            onClick={() => handleUpdateStatus('unpaid')}
-                            disabled={verifying}
-                            className="h-16 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl font-black text-lg flex items-center justify-center gap-3 border border-red-100 transition-all active:scale-[0.98]"
-                        >
-                            <XMarkIcon className="w-6 h-6" />
-                            ปฏิเสธการโอน
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => handleUpdateStatus('paid')}
+                        disabled={verifying}
+                        className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-blue-100 transition-all active:scale-[0.98]"
+                    >
+                        <CheckBadgeIcon className="w-6 h-6" />
+                        {verifying ? 'กำลังบันทึก...' : 'อนุมัติ / รับเงิน'}
+                    </button>
                 )}
 
                 <button
