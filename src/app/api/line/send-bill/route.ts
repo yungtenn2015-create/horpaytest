@@ -127,7 +127,7 @@ function createBillFlexMessage(bill: any, dormName: string) {
     altText: `ใบแจ้งหนี้เดือน ${monthStr} ${yearStr} - ห้อง ${bill.rooms.room_number}`,
     contents: {
       type: "bubble",
-      size: "flat",
+      size: "mega",
       header: {
         type: "box",
         layout: "vertical",
