@@ -50,6 +50,7 @@ function BillingContent() {
     const [expandedRoom, setExpandedRoom] = useState<string | null>(null)
     const [filterFloor, setFilterFloor] = useState<number | 'all'>('all')
     const [filterLineStatus, setFilterLineStatus] = useState<'all' | 'linked' | 'unlinked'>('all')
+    const [filterWorkingStatus, setFilterWorkingStatus] = useState<'all' | 'pending_meter' | 'ready' | 'issued'>('all')
 
     const thaiMonths = [
         'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -430,8 +431,23 @@ function BillingContent() {
         } else if (filterLineStatus === 'unlinked') {
             data = data.filter(item => !item.lineUserId)
         }
+        
+        if (filterWorkingStatus === 'pending_meter') {
+            data = data.filter(item => item.status === 'pending_meter')
+        } else if (filterWorkingStatus === 'ready') {
+            data = data.filter(item => item.status === 'ready')
+        } else if (filterWorkingStatus === 'issued') {
+            data = data.filter(item => ['issued', 'waiting_verify', 'paid'].includes(item.status))
+        }
+        
         return data
     })()
+
+    // Counts for working status
+    const countAll = billingData.length
+    const countPending = billingData.filter(d => d.status === 'pending_meter').length
+    const countReady = billingData.filter(d => d.status === 'ready').length
+    const countIssued = billingData.filter(d => ['issued', 'waiting_verify', 'paid'].includes(d.status)).length
 
     const readyToIssueCount = filteredData.filter(d => d.status === 'ready').length
 
@@ -503,6 +519,36 @@ function BillingContent() {
                                     ชั้น {floor}
                                 </button>
                             ))}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">สถานะการทำงาน</span>
+                        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+                            <button
+                                onClick={() => setFilterWorkingStatus('all')}
+                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'all' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                            >
+                                ทั้งหมด ({countAll})
+                            </button>
+                            <button
+                                onClick={() => setFilterWorkingStatus('pending_meter')}
+                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'pending_meter' ? 'bg-orange-500 text-white shadow-lg shadow-orange-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                            >
+                                รอจดมิเตอร์ ({countPending})
+                            </button>
+                            <button
+                                onClick={() => setFilterWorkingStatus('ready')}
+                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'ready' ? 'bg-yellow-400 text-white shadow-lg shadow-yellow-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                            >
+                                รอออกบิล ({countReady})
+                            </button>
+                            <button
+                                onClick={() => setFilterWorkingStatus('issued')}
+                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'issued' ? 'bg-blue-500 text-white shadow-lg shadow-blue-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                            >
+                                ออกบิลแล้ว ({countIssued})
+                            </button>
                         </div>
                     </div>
 
