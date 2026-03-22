@@ -20,6 +20,12 @@ export async function POST(req: Request) {
     // Handle multiple LINE OAs
     // We need to find which config this webhook belongs to by checking the 'destination' in the body
     const jsonBody = JSON.parse(body);
+    
+    // Handle LINE Webhook Verification
+    if (!jsonBody.events || jsonBody.events.length === 0) {
+      return NextResponse.json({ message: 'OK' });
+    }
+
     const destination = jsonBody.destination; // This is the Channel ID or User ID of the BOT
 
     // Find config by channel_id (destination)
