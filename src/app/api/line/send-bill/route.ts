@@ -55,7 +55,7 @@ export async function POST(req: Request) {
 
     // 2. Fetch Dorm & settings
     const [ { data: dorm }, { data: settings }, { data: dormConfig } ] = await Promise.all([
-      supabaseAdmin.from('dorms').select('name').eq('id', bill.rooms.dorm_id).single(),
+      supabaseAdmin.from('dorms').select('name, contact_number').eq('id', bill.rooms.dorm_id).single(),
       supabaseAdmin.from('dorm_settings').select('*').eq('dorm_id', bill.rooms.dorm_id).maybeSingle(),
       supabaseAdmin.from('line_oa_configs').select('*').eq('dorm_id', bill.rooms.dorm_id).maybeSingle()
     ]);
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     }
 
     // 3. Construct Flex Message
-    const flexMessage = createBillFlexMessage(bill, dorm?.name || 'หอพัก', settings);
+    const flexMessage = createBillFlexMessage(bill, dorm || { name: 'หอพัก' }, settings);
 
     // 4. Send via LINE Messaging API
     const response = await fetch('https://api.line.me/v2/bot/message/push', {
@@ -106,7 +106,8 @@ export async function POST(req: Request) {
   }
 }
 
-function createBillFlexMessage(bill: any, dormName: string, bankSettings: any) {
+function createBillFlexMessage(bill: any, dorm: any, bankSettings: any) {
+  const dormName = dorm.name || 'หอพัก';
   const roomAmount = Number(bill.room_amount) || 0;
   const utils = bill.utilities;
   const waterAmount = Number(utils?.water_price) || 0;
@@ -120,13 +121,17 @@ function createBillFlexMessage(bill: any, dormName: string, bankSettings: any) {
     new Date(bill.billing_month).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : 
     '-';
 
+  const dormLabel = dorm?.contact_number ? 
+    `${dormName} (โทร: ${dorm?.contact_number})` : 
+    dormName;
+
   const dueDate = bill.due_date ? 
     new Date(bill.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : 
     '-';
 
   return {
     type: "flex",
-    altText: `แจ้งค่าเช่าห้อง ${roomNumber} เดือน ${billingMonth}`,
+    altText: `${dormName} - แจ้งค่าเช่าห้อง ${roomNumber} (฿${totalAmount.toLocaleString()})`,
     contents: {
       type: "bubble",
       size: "mega",
@@ -138,16 +143,17 @@ function createBillFlexMessage(bill: any, dormName: string, bankSettings: any) {
         contents: [
           {
             type: "text",
-            text: `แจ้งค่าเช่าห้อง ${roomNumber}`,
-            color: "#FFFFFF",
-            weight: "bold",
-            size: "xl"
+            text: dormLabel,
+            color: "#ECFDF5",
+            size: "sm",
+            weight: "bold"
           },
           {
             type: "text",
-            text: dormName,
-            color: "#ECFDF5",
-            size: "sm",
+            text: `แจ้งค่าเช่าห้อง ${roomNumber}`,
+            color: "#FFFFFF",
+            weight: "bold",
+            size: "xl",
             margin: "4px"
           }
         ]
