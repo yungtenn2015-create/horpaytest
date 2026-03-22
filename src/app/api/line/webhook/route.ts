@@ -80,55 +80,81 @@ async function handleEvent(event: any, config: any) {
 
   if (type === 'follow') {
     // Phase 2, Step 3: Link Owner
-    // If we don't have an owner_line_user_id yet, assume the first follower is the owner
-    // OR we could check if the lineUserId matches someone who just clicked a link (future)
     if (!config.owner_line_user_id) {
       await supabaseAdmin
         .from('line_oa_configs')
         .update({ owner_line_user_id: lineUserId })
         .eq('id', config.id);
       
-      await replyText(replyToken, config.access_token, `สวัสดีครับเจ้าของหอ ${config.dorms.name}! ระบบผูกบัญชีเจ้าของสำหรับรับแจ้งเตือนสลิปเรียบร้อยแล้วครับ`);
+      await replyText(replyToken, config.access_token, `สวัสดีครับเจ้าของหอ ${config.dorms?.name || ''}! ระบบผูกบัญชีเจ้าของสำหรับรับแจ้งเตือนสลิปเรียบร้อยแล้วครับ`);
     } else {
-      // It's a tenant or some other person
-      await replyText(replyToken, config.access_token, `สวัสดีครับ! ยินดีต้อนรับสู่ LINE OA ของ ${config.dorms.name} กรุณาแจ้งหมายเลขห้องของคุณเพื่อรับใบแจ้งหนี้ครับ`);
+      // Improved Welcome Message for Tenants
+      const welcomeMsg = `ยินดีต้อนรับสู่ ${config.dorms?.name || 'หอพักของเรา'}! 😊
+
+เพื่อรับใบแจ้งหนี้ผ่านทาง LINE กรุณายืนยันตัวตนโดยพิมพ์:
+"เลขห้อง" ตามด้วย "เบอร์โทรศัพท์"
+(ตัวอย่าง: 101 0812345678)`;
+      
+      await replyText(replyToken, config.access_token, welcomeMsg);
     }
   }
 
   if (type === 'message' && event.message.type === 'text') {
     const text = event.message.text.trim();
     
-    // Phase 3: Link Tenant by Room Number
-    // Logic: Look for a tenant in this dorm with this room number
-    const { data: rooms } = await supabaseAdmin
-      .from('rooms')
-      .select('id, room_number, dorm_id')
-      .eq('dorm_id', config.dorm_id)
-      .eq('room_number', text)
-      .single();
+    // Pattern: [RoomNum] [10-digit Phone] (e.g., "101 0812345678")
+    const verifyPattern = /^(\w+)\s+(\d{10})$/;
+    const match = text.match(verifyPattern);
 
-    if (rooms) {
-      // Find the active tenant in this room
-      const { data: tenant } = await supabaseAdmin
-        .from('tenants')
-        .select('id, name')
-        .eq('room_id', rooms.id)
-        .eq('status', 'active')
+    if (match) {
+      const roomNum = match[1];
+      const phoneNum = match[2];
+
+      const { data: rooms } = await supabaseAdmin
+        .from('rooms')
+        .select('id, room_number, dorm_id')
+        .eq('dorm_id', config.dorm_id)
+        .eq('room_number', roomNum)
         .single();
 
-      if (tenant) {
-        // Link the tenant
-        await supabaseAdmin
+      if (rooms) {
+        // Find the active tenant in this room matching THIS phone number
+        const { data: tenant } = await supabaseAdmin
           .from('tenants')
-          .update({ line_user_id: lineUserId })
-          .eq('id', tenant.id);
+          .select('id, name')
+          .eq('room_id', rooms.id)
+          .eq('phone', phoneNum)
+          .eq('status', 'active')
+          .single();
 
-        await replyText(replyToken, config.access_token, `ยืนยันตัวตนสำเร็จ! คุณ ${tenant.name} ห้อง ${rooms.room_number} จะได้รับแจ้งเตือนบิลผ่านทางนี้ครับ`);
+        if (tenant) {
+          // Link the tenant
+          const { error: updateError } = await supabaseAdmin
+            .from('tenants')
+            .update({ line_user_id: lineUserId })
+            .eq('id', tenant.id);
+
+          if (updateError) {
+            await replyText(replyToken, config.access_token, `เกิดข้อผิดพลาดในการผูกบัญชี กรุณาลองใหม่อีกครั้งหรือติดต่อเจ้าหน้าที่`);
+          } else {
+            await replyText(replyToken, config.access_token, `ยืนยันตัวตนสำเร็จ! 🎉คุณ ${tenant.name} ห้อง ${rooms.room_number} จะเริ่มรับแจ้งเตือนบิลผ่านทาง LINE ตั้งแต่รอบหน้าเป็นต้นไปครับ`);
+          }
+        } else {
+          await replyText(replyToken, config.access_token, `ไม่พบข้อมูลที่ตรงกับห้อง ${roomNum} และเบอร์โทรที่ระบุ กรุณาตรวจสอบเบอร์โทรศัพท์ที่ให้ไว้กับทางหอพักอีกครั้งครับ`);
+        }
       } else {
-        await replyText(replyToken, config.access_token, `ไม่พบผู้เช่าที่สถานะปกติในห้อง ${text} กรุณาแจ้งเจ้าของหอพักครับ`);
+        await replyText(replyToken, config.access_token, `ไม่พบหมายเลขห้อง ${roomNum} ในระบบของเราครับ`);
       }
-    } else if (text.toLowerCase() === 'id') {
+    } 
+    else if (text.toLowerCase() === 'id') {
        await replyText(replyToken, config.access_token, `LINE ID ของคุณคือ: ${lineUserId}`);
+    }
+    else {
+      // Optional: Help message for unrecognized inputs
+      const helpMsg = `ดูเหมือนคุณพิมพ์ข้อมูลไม่ครบถ้วน
+กรุณาพิมพ์: เลขห้อง [เว้นวรรค] เบอร์โทรศัพท์
+(ตัวอย่าง: 101 0812345678)`;
+      await replyText(replyToken, config.access_token, helpMsg);
     }
   }
 

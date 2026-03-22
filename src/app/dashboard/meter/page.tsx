@@ -44,8 +44,11 @@ interface MeterInput {
 
 type ViewMode = 'all' | 'floor' | 'single';
 
+import { useSearchParams } from 'next/navigation'
+
 export default function MeterReadingPage() {
     const router = useRouter()
+    const searchParams = useSearchParams()
 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -54,6 +57,10 @@ export default function MeterReadingPage() {
 
     const [dormId, setDormId] = useState('')
     const [selectedMonth, setSelectedMonth] = useState(() => {
+        const queryMonth = searchParams.get('month')
+        if (queryMonth && /^\d{4}-\d{2}$/.test(queryMonth)) {
+            return queryMonth
+        }
         const d = new Date()
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     })
@@ -72,7 +79,8 @@ export default function MeterReadingPage() {
 
     const [rooms, setRooms] = useState<Room[]>([])
     // prevReadings[roomId] = { water, electric, isInitial }
-    const [prevReadings, setPrevReadings] = useState<Record<string, { water: number, electric: number, isInitial: boolean }>>({})
+    const [prevReadings, setPrevReadings] = useState<Record<string, { water: string, electric: string, isInitial: boolean }>>({})
+    const [roomsWithBills, setRoomsWithBills] = useState<Record<string, boolean>>({})
 
     // meterInputs[roomId] = { currWater, currElectric }
     const [meterInputs, setMeterInputs] = useState<Record<string, { currWater: string, currElectric: string }>>({})
@@ -165,6 +173,7 @@ export default function MeterReadingPage() {
                     const roomIds = roomsData.map((r: Room) => r.id)
 
                     if (roomIds.length > 0) {
+                        // 3. Fetch previous month readings
                         const { data: utilsData, error: utilsError } = await supabase
                             .from('utilities')
                             .select('room_id, curr_water_meter, curr_electric_meter, prev_water_meter, prev_electric_meter, meter_date')
@@ -173,8 +182,21 @@ export default function MeterReadingPage() {
 
                         if (utilsError) throw utilsError
 
+                        // 3.1 Fetch existing bills for this month
+                        const { data: billsData } = await supabase
+                            .from('bills')
+                            .select('room_id')
+                            .in('room_id', roomIds)
+                            .eq('billing_month', `${selectedMonth}-01`)
+
+                        const billedMap: Record<string, boolean> = {}
+                        billsData?.forEach(b => {
+                            billedMap[b.room_id] = true
+                        })
+                        setRoomsWithBills(billedMap)
+
                         // 4. Map readings robustly
-                        const latestPrev: Record<string, { water: number, electric: number, isInitial: boolean }> = {}
+                        const latestPrev: Record<string, { water: string, electric: string, isInitial: boolean }> = {}
                         const existingInputs: Record<string, { currWater: string, currElectric: string }> = {}
 
                         roomsData.forEach((r: Room) => {
@@ -192,29 +214,33 @@ export default function MeterReadingPage() {
                             const hasPrecedingRecord = !!pRec
                             
                             // 4.3 Determine "Previous Meter" and "Initial" status
-                            let prevWater = 0
-                            let prevElec = 0
+                            let prevWater = '0'
+                            let prevElec = '0'
                             let isInitial = !hasPrecedingRecord || roomUtils.length === 0
 
                             if (currRec) {
                                 // If I already saved part of this month, use the 'prev' values I saved
-                                prevWater = currRec.prev_water_meter
-                                prevElec = currRec.prev_electric_meter
+                                prevWater = currRec.prev_water_meter.toString()
+                                prevElec = currRec.prev_electric_meter.toString()
                                 existingInputs[r.id] = {
                                     currWater: currRec.curr_water_meter.toString() || '',
                                     currElectric: currRec.curr_electric_meter.toString() || ''
                                 }
                             } else if (hasPrecedingRecord) {
                                 // Ideal case: use the directly preceding month's current reading
-                                prevWater = pRec.curr_water_meter
-                                prevElec = pRec.curr_electric_meter
+                                prevWater = pRec.curr_water_meter.toString()
+                                prevElec = pRec.curr_electric_meter.toString()
                                 existingInputs[r.id] = { currWater: '', currElectric: '' }
                             } else {
                                 // Fallback: try latest history EVER before this month
                                 const priorRecs = roomUtils.filter((u: any) => u.meter_date < `${currentTargetMonth}-01`)
                                 if (priorRecs.length > 0) {
-                                    prevWater = priorRecs[0].curr_water_meter
-                                    prevElec = priorRecs[0].curr_electric_meter
+                                    prevWater = priorRecs[0].curr_water_meter.toString()
+                                    prevElec = priorRecs[0].curr_electric_meter.toString()
+                                } else {
+                                    // NO PREVIOUS DATA EVER - Use empty strings
+                                    prevWater = ''
+                                    prevElec = ''
                                 }
                                 existingInputs[r.id] = { currWater: '', currElectric: '' }
                             }
@@ -245,6 +271,9 @@ export default function MeterReadingPage() {
     })
 
     const handleInput = (roomId: string, type: 'water' | 'electric', value: string) => {
+        // Prevent editing if room already has a bill
+        if (roomsWithBills[roomId]) return
+
         // Allow only numbers
         const cleanVal = value.replace(/[^0-9]/g, '')
         setMeterInputs(prev => ({
@@ -257,57 +286,64 @@ export default function MeterReadingPage() {
     }
 
     const handlePrevInput = (roomId: string, type: 'water' | 'electric', value: string) => {
+        if (roomsWithBills[roomId]) return
         const cleanVal = value.replace(/[^0-9]/g, '')
-        const numVal = cleanVal === '' ? 0 : parseInt(cleanVal)
         setPrevReadings(prev => ({
             ...prev,
             [roomId]: {
                 ...prev[roomId],
-                [type === 'water' ? 'water' : 'electric']: numVal
+                [type === 'water' ? 'water' : 'electric']: cleanVal
             }
         }))
     }
 
-    const handleSave = async () => {
-        // Validate missing inputs based on what's displayed
-        let hasMissing = false
+    const isSaveDisabled = (() => {
+        if (saving || displayedRooms.length === 0) return true
+        let missing = false
         displayedRooms.forEach(r => {
-            const inf = meterInputs[r.id]
+            if (roomsWithBills[r.id]) return
+            const inf = meterInputs[r.id] || { currElectric: '', currWater: '' }
+            const prev = prevReadings[r.id] || { electric: '', water: '' }
+
             if (utilityFilter === 'all' || utilityFilter === 'electric') {
-                if (inf.currElectric === '') hasMissing = true
+                if (inf.currElectric === '' || prev.electric === '') missing = true
             }
             if (utilityFilter === 'all' || utilityFilter === 'water') {
-                if (inf.currWater === '') hasMissing = true
+                if (inf.currWater === '' || (waterBillingType !== 'flat_rate' && prev.water === '')) missing = true
             }
         })
+        return missing
+    })()
 
-        if (hasMissing) {
-            setErrorMsg('กรุณากรอกข้อมูลให้ครบถ้วน ถึงจะทำการบันทึกข้อมูลได้')
-            return
-        }
+    const handleSave = async () => {
+        if (isSaveDisabled) return
 
-        // Collect data to insert
-        // Only insert rooms where AT LEAST ONE of the meters was filled
-        const toSave = displayedRooms.map(r => {
-            const inf = meterInputs[r.id]
-            const p = prevReadings[r.id]
-            const currWaterVal = (utilityFilter === 'all' || utilityFilter === 'water') ? parseInt(inf.currWater) : p.water
-            const currElecVal = (utilityFilter === 'all' || utilityFilter === 'electric') ? parseInt(inf.currElectric) : p.electric
-            
-            return {
-                room_id: r.id,
-                meter_date: `${selectedMonth}-01`, // Default to 1st of the month
-                prev_electric_meter: p.electric,
-                curr_electric_meter: currElecVal,
-                electric_unit: currElecVal - p.electric,
-                prev_water_meter: p.water,
-                curr_water_meter: currWaterVal,
-                water_unit: currWaterVal - p.water
-            }
-        })
+        // Collect data to insert (only for rooms NOT billed)
+        const toSave = displayedRooms
+            .filter(r => !roomsWithBills[r.id])
+            .map(r => {
+                const inf = meterInputs[r.id]
+                const p = prevReadings[r.id]
+                const pElecNum = parseInt(p.electric || '0')
+                const pWaterNum = parseInt(p.water || '0')
+
+                const currWaterVal = (utilityFilter === 'all' || utilityFilter === 'water') ? parseInt(inf.currWater) : pWaterNum
+                const currElecVal = (utilityFilter === 'all' || utilityFilter === 'electric') ? parseInt(inf.currElectric) : pElecNum
+                
+                return {
+                    room_id: r.id,
+                    meter_date: `${selectedMonth}-01`, // Default to 1st of the month
+                    prev_electric_meter: pElecNum,
+                    curr_electric_meter: currElecVal,
+                    electric_unit: currElecVal - pElecNum,
+                    prev_water_meter: pWaterNum,
+                    curr_water_meter: currWaterVal,
+                    water_unit: currWaterVal - pWaterNum
+                }
+            })
 
         if (toSave.length === 0) {
-            setErrorMsg('กรุณากรอกข้อมูลอย่างน้อย 1 ห้อง')
+            setErrorMsg('ไม่มีข้อมูลใหม่ให้บันทึก (ห้องที่ออกบิลแล้วไม่สามารถแก้ไขมิเตอร์ได้)')
             return
         }
 
@@ -362,14 +398,23 @@ export default function MeterReadingPage() {
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                     <div className="relative z-10 flex items-center gap-4">
                         <button
-                            onClick={() => router.push('/dashboard')}
+                            onClick={() => router.push(`/dashboard/billing?month=${selectedMonth}`)}
                             className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-2xl flex items-center justify-center text-white backdrop-blur-md transition-all active:scale-95"
                         >
                             <ArrowLeftIcon className="w-5 h-5 stroke-[3]" />
                         </button>
                         <div>
                             <h1 className="text-2xl font-black text-white tracking-tight drop-shadow-md">จดมิเตอร์น้ำ-ไฟ</h1>
-                            <p className="text-green-100 text-xs font-bold mt-1">บันทึกข้อมูลมิเตอร์ประจำเดือน</p>
+                            <div className="flex items-center gap-2 mt-1">
+                                <p className="text-green-100 text-[10px] font-bold">บันทึกข้อมูลมิเตอร์ประจำเดือน</p>
+                                <div className="w-1 h-1 bg-white/40 rounded-full" />
+                                <button 
+                                    onClick={() => router.push(`/dashboard/billing?month=${selectedMonth}`)}
+                                    className="text-white text-[10px] font-black underline decoration-white/30 underline-offset-2 hover:text-green-50"
+                                >
+                                    ไปที่หน้าออกบิล
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </header>
@@ -418,9 +463,15 @@ export default function MeterReadingPage() {
                                                 {monthsTH.map((mth, idx) => {
                                                     const currentM = `${pickerYear}-${String(idx + 1).padStart(2, '0')}`;
                                                     const isSelected = selectedMonth === currentM;
+                                                    
+                                                    // Disable future months
+                                                    const now = new Date();
+                                                    const isFuture = new Date(pickerYear, idx, 1) > new Date(now.getFullYear(), now.getMonth(), 1);
+
                                                     return (
                                                         <button
                                                             key={mth}
+                                                            disabled={isFuture}
                                                             onClick={() => {
                                                                 setSelectedMonth(currentM);
                                                                 setIsMonthPickerOpen(false);
@@ -428,7 +479,9 @@ export default function MeterReadingPage() {
                                                             className={`py-3 rounded-2xl text-sm font-bold transition-all
                                                                 ${isSelected
                                                                     ? 'bg-green-500 text-white shadow-lg shadow-green-200 scale-105'
-                                                                    : 'text-gray-600 hover:bg-green-50 hover:text-green-600'
+                                                                    : isFuture
+                                                                        ? 'text-gray-300 cursor-not-allowed opacity-50'
+                                                                        : 'text-gray-600 hover:bg-green-50 hover:text-green-600'
                                                                 }`}
                                                         >
                                                             {mth}
@@ -594,8 +647,8 @@ export default function MeterReadingPage() {
                                     const cwNum = c.currWater !== '' ? parseInt(c.currWater) : null;
                                     const ceNum = c.currElectric !== '' ? parseInt(c.currElectric) : null;
 
-                                    const wDiff = cwNum !== null ? cwNum - p.water : 0;
-                                    const eDiff = ceNum !== null ? ceNum - p.electric : 0;
+                                    const wDiff = cwNum !== null ? cwNum - parseInt(p.water || '0') : 0;
+                                    const eDiff = ceNum !== null ? ceNum - parseInt(p.electric || '0') : 0;
 
                                     return (
                                         <div key={room.id} className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm space-y-5">
@@ -604,6 +657,11 @@ export default function MeterReadingPage() {
                                                     <span className="text-lg font-black text-gray-800">ห้อง {room.room_number}</span>
                                                     <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md font-bold">ชั้น {room.floor}</span>
                                                 </div>
+                                                {roomsWithBills[room.id] && (
+                                                    <span className="text-[10px] font-black text-white bg-blue-500 px-3 py-1 rounded-full shadow-sm shadow-blue-100 flex items-center gap-1">
+                                                        <CheckCircleIcon className="w-3 h-3" /> ออกบิลแล้ว
+                                                    </span>
+                                                )}
                                             </div>
 
                                             <div className={`grid gap-6 ${utilityFilter === 'all' ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -643,9 +701,10 @@ export default function MeterReadingPage() {
                                                                 type="tel"
                                                                 placeholder="เลขมิเตอร์ใหม่"
                                                                 value={c.currElectric}
+                                                                disabled={roomsWithBills[room.id]}
                                                                 onChange={(e) => handleInput(room.id, 'electric', e.target.value)}
                                                                 className={`w-full bg-orange-50/30 border-2 rounded-xl px-3 py-2 text-sm font-black text-gray-800 focus:outline-none transition-all text-center
-                                                                    ${eDiff < 0 ? 'border-red-400 focus:border-red-500' : ceNum !== null ? 'border-orange-400' : 'border-gray-100 focus:border-orange-400'}
+                                                                    ${roomsWithBills[room.id] ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-not-allowed' : eDiff < 0 ? 'border-red-400 focus:border-red-500' : ceNum !== null ? 'border-orange-400' : 'border-gray-100 focus:border-orange-400'}
                                                                 `}
                                                             />
                                                             {ceNum !== null && (
@@ -699,9 +758,10 @@ export default function MeterReadingPage() {
                                                                 type="tel"
                                                                 placeholder="เลขมิเตอร์ใหม่"
                                                                 value={c.currWater}
+                                                                disabled={roomsWithBills[room.id]}
                                                                 onChange={(e) => handleInput(room.id, 'water', e.target.value)}
                                                                 className={`w-full bg-blue-50/30 border-2 rounded-xl px-3 py-2 text-sm font-black text-gray-800 focus:outline-none transition-all text-center
-                                                                    ${wDiff < 0 ? 'border-red-400 focus:border-red-500' : cwNum !== null ? 'border-blue-400' : 'border-gray-100 focus:border-blue-400'}
+                                                                    ${roomsWithBills[room.id] ? 'bg-gray-50 border-gray-100 text-gray-400 cursor-not-allowed' : wDiff < 0 ? 'border-red-400 focus:border-red-500' : cwNum !== null ? 'border-blue-400' : 'border-gray-100 focus:border-blue-400'}
                                                                 `}
                                                             />
                                                             {cwNum !== null && (
@@ -725,9 +785,9 @@ export default function MeterReadingPage() {
                 <div className="absolute bottom-0 w-full bg-white border-t border-gray-100 p-6 z-50 rounded-b-[2.5rem]">
                     <button
                         onClick={handleSave}
-                        disabled={saving || displayedRooms.length === 0}
+                        disabled={isSaveDisabled}
                         className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2
-                            ${saving || displayedRooms.length === 0
+                            ${isSaveDisabled
                                 ? 'bg-gray-300 shadow-none cursor-not-allowed'
                                 : 'bg-green-500 hover:bg-green-600 shadow-green-200 active:scale-95'
                             }`}

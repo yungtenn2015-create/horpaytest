@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { toPng } from 'html-to-image'
+import { format, parseISO } from 'date-fns'
+import { th } from 'date-fns/locale'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import {
@@ -46,52 +48,111 @@ export default function ReceiptPage() {
 
     useEffect(() => {
         const fetchData = async () => {
+            if (!params.id) return
             setLoading(true)
             try {
-                // 1. Fetch Dorm and Settings
-                const { data: dorms } = await supabase.from('dorms').select('*').limit(1)
-                const dorm = dorms?.[0] as any
-                
-                if (!dorm) return
+                // 1. Fetch Bill
+                const { data: bill, error: billError } = await supabase
+                    .from('bills')
+                    .select('*')
+                    .eq('id', params.id)
+                    .single()
+
+                if (billError || !bill) {
+                    console.error('Bill not found', billError)
+                    return
+                }
+
+                // 2. Fetch Room & Tenant Info
+                const { data: room } = await supabase
+                    .from('rooms')
+                    .select(`
+                        room_number,
+                        dorm_id,
+                        tenants:lease_contracts(
+                            tenant_name,
+                            status
+                        )
+                    `)
+                    .eq('id', bill.room_id)
+                    .single()
+
+                const activeTenant = (room?.tenants as any[])?.find((t: any) => t.status === 'active') || 
+                                    (room?.tenants as any[])?.find((t: any) => t)
+
+                // 3. Fetch Utility Info for meter readings
+                let utility = null
+                if (bill.utility_id) {
+                    const { data: u } = await supabase
+                        .from('utilities')
+                        .select('*')
+                        .eq('id', bill.utility_id)
+                        .single()
+                    utility = u
+                }
+
+                // 4. Fetch Dorm & Settings
+                const { data: dorm } = await supabase
+                    .from('dorms')
+                    .select('*')
+                    .eq('id', room?.dorm_id)
+                    .single()
 
                 const { data: settings } = await supabase
                     .from('dorm_settings')
                     .select('*')
-                    .eq('dorm_id', dorm.id)
+                    .eq('dorm_id', room?.dorm_id)
                     .single()
 
-                // 2. Fetch Tenant/Room Info (Mocked for now but using real Dorm data)
-                // In production, you would fetch the specific bill record
-                const mockTotal = 5670
+                // 5. Prepare Receipt Items
+                const items = [
+                    { name: 'ค่าเช่าห้องพัก', amount: Number(bill.rent_amount || 0), detail: 'รายเดือน' }
+                ]
 
-                // Calculate Dynamic Due Date
-                // If payment_due_day is 5, it means 5th of next month
-                const now = new Date()
-                const dueMonth = now.getMonth() + 1 // Next month
-                const dueYear = now.getFullYear() + (dueMonth > 11 ? 1 : 0)
-                const finalDueMonth = dueMonth % 12
-                const dueDayStr = settings?.payment_due_day || 5
+                if (Number(bill.water_amount || 0) > 0) {
+                    const units = utility ? (utility.water_unit - utility.prev_water_unit) : 0
+                    items.push({ 
+                        name: 'ค่าน้ำประปา', 
+                        amount: Number(bill.water_amount || 0), 
+                        detail: `มิเตอร์: ${utility?.prev_water_unit || 0} - ${utility?.water_unit || 0} (${units} หน่วย)` 
+                    })
+                }
+
+                if (Number(bill.electric_amount || 0) > 0) {
+                    const units = utility ? (utility.electric_unit - utility.prev_electric_unit) : 0
+                    items.push({ 
+                        name: 'ค่าไฟฟ้า', 
+                        amount: Number(bill.electric_amount || 0), 
+                        detail: `มิเตอร์: ${utility?.prev_electric_unit || 0} - ${utility?.electric_unit || 0} (${units} หน่วย)` 
+                    })
+                }
+
+                if (Number(bill.other_amount || 0) > 0) {
+                    items.push({ name: 'ค่าใช้จ่ายอื่นๆ', amount: Number(bill.other_amount || 0), detail: 'เพิ่มเติม' })
+                }
+
+                // 6. Format Date Strings
+                const billingDate = parseISO(bill.billing_month)
+                const formattedMonth = format(billingDate, 'MMMM yyyy', { locale: th })
+                const formattedDate = format(new Date(bill.created_at), 'd MMMM yyyy', { locale: th })
+                
+                const dueDate = bill.due_date ? format(parseISO(bill.due_date), 'd MMMM yyyy', { locale: th }) : '-'
 
                 setData({
-                    receiptId: `REC-${params.id || '001'}`,
-                    date: now.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }),
-                    month: now.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }),
-                    dueDate: `${dueDayStr} ${new Date(dueYear, finalDueMonth).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })}`,
-                    dormName: dorm.name || 'Rich Dorm (Verified)',
-                    address: dorm.address || '456 Ratchadapisek Rd Bangkok',
-                    dormPhone: dorm.contact_number || '081-234-5678',
-                    roomNumber: params.id || '201',
-                    tenantName: 'คุณสมชาย มั่งคั่ง',
-                    bankName: settings?.bank_name || 'กสิกรไทย',
-                    bankNo: settings?.bank_account_no || '012-3-45678-0',
-                    bankAccount: settings?.bank_account_name || dorm.name,
-                    items: [
-                        { name: 'ค่าเช่าห้องพัก', amount: settings?.room_rate || 4500, detail: 'รายเดือน' },
-                        { name: 'ค่าน้ำประปา', amount: 120, detail: `เลขมิเตอร์: 100 - 110 (10 หน่วย x 12.00)` },
-                        { name: 'ค่าไฟฟ้า', amount: 850, detail: `เลขมิเตอร์: 1000 - 1085 (85 หน่วย x 10.00)` },
-                        { name: 'ค่าส่วนกลาง', amount: 200, detail: 'คงที่' },
-                    ],
-                    total: mockTotal
+                    receiptId: `REC-${bill.id.slice(0, 8).toUpperCase()}`,
+                    date: formattedDate,
+                    month: formattedMonth,
+                    dueDate: dueDate,
+                    dormName: dorm?.name || 'หอพัก',
+                    address: dorm?.address || '-',
+                    dormPhone: dorm?.contact_number || '-',
+                    roomNumber: room?.room_number || '-',
+                    tenantName: activeTenant?.tenant_name || 'ไม่ระบุชื่อ',
+                    bankName: settings?.bank_name || '-',
+                    bankNo: settings?.bank_account_no || '-',
+                    bankAccount: settings?.bank_account_name || dorm?.name || '-',
+                    items: items,
+                    total: Number(bill.total_amount || 0)
                 })
             } catch (error) {
                 console.error(error)
@@ -113,8 +174,8 @@ export default function ReceiptPage() {
 
         const node = receiptRef.current
 
-        toPng(node, { 
-            cacheBust: true, 
+        toPng(node, {
+            cacheBust: true,
             pixelRatio: 2,
             width: node.offsetWidth,
             height: node.offsetHeight,
@@ -221,7 +282,7 @@ export default function ReceiptPage() {
                                     <p className="text-[15px] font-black text-gray-800">{item.name}</p>
                                     {item.detail && <p className="text-[12px] font-bold text-gray-400 mt-0.5">{item.detail}</p>}
                                 </div>
-                                <p className="text-[15px] font-black text-gray-900">฿{item.amount.toLocaleString()}</p>
+                                <p className="text-[15px] font-black text-gray-900">฿{(Number(item.amount) || 0).toLocaleString()}</p>
                             </div>
                         ))}
                     </div>
@@ -230,9 +291,9 @@ export default function ReceiptPage() {
                     <div className="bg-emerald-500 rounded-2xl p-4 mb-4 text-white shadow-xl shadow-emerald-100 flex items-center justify-between">
                         <div>
                             <p className="text-[12px] font-black text-emerald-100 uppercase tracking-widest mb-1">ยอดรวมสุทธิ</p>
-                            <p className="text-sm font-bold leading-tight italic opacity-95">{bahtText(data.total)}</p>
+                            <p className="text-sm font-bold leading-tight italic opacity-95">{bahtText(Number(data.total) || 0)}</p>
                         </div>
-                        <p className="text-3xl font-black">฿{data.total.toLocaleString()}</p>
+                        <p className="text-3xl font-black">฿{(Number(data.total) || 0).toLocaleString()}</p>
                     </div>
 
                     {/* RESTACKED PAYMENT INFO: OWNER NAME FOCUS */}
@@ -254,8 +315,8 @@ export default function ReceiptPage() {
 
                 {/* Footer Message: Integrated with padding */}
                 <div className="bg-gray-50/50 p-4 text-center border-t border-gray-100">
-                    <p className="text-lg text-emerald-600 underline underline-offset-4 decoration-emerald-200">
-                        กรุณาชำระเงินภายในวันที่ <span className="text-lg text-emerald-600 underline underline-offset-4 decoration-emerald-200">{data.dueDate}</span>
+                    <p className="text-lg text-red-500 underline underline-offset-4 decoration-red-500">
+                        กรุณาชำระเงินภายในวันที่ <span className="text-lg text-red-500 underline underline-offset-4 decoration-red-500">{data.dueDate}</span>
                     </p>
                     <p className="text-[10px] font-bold text-gray-300 italic uppercase">Powered by HorPay - Smart Dorm Management</p>
                 </div>

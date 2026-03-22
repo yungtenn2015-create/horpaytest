@@ -498,7 +498,7 @@ export default function ManageRoomsPage() {
                                                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${room.room_type === 'air' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-orange-50 text-orange-600 border border-orange-100'}`}>
                                                                             {room.room_type === 'air' ? 'ห้องแอร์' : 'ห้องพัดลม'}
                                                                         </span>
-                                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${room.status === 'occupied' ? 'bg-green-50 text-green-600 shadow-sm' : 'bg-gray-100 text-gray-400'}`}>
+                                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${room.status === 'occupied' ? 'bg-blue-50 text-blue-600 shadow-sm' : 'bg-gray-100 text-gray-400'}`}>
                                                                             {room.status === 'occupied' ? 'มีผู้เช่า' : 'ห้องว่าง'}
                                                                         </span>
                                                                     </div>
