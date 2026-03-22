@@ -126,7 +126,7 @@ export default function ReceiptPage() {
                 }
 
                 // 6. Build Items List
-                const items = [
+                const items: { name: string; amount: number; detail?: string }[] = [
                     { name: 'ค่าเช่าห้องพัก', amount: Number(bill.room_amount || 0) }
                 ]
 
