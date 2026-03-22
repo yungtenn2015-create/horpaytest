@@ -293,15 +293,15 @@ function createBillFlexMessage(bill: any, dormName: string, bankSettings: any) {
                 text: "บัญชีโอนชำระเงิน",
                 color: "#374151",
                 weight: "bold",
-                size: "sm",
-                marginBottom: "8px"
+                size: "sm"
               },
               {
                 type: "text",
                 text: `${bankSettings?.bank_name || '-'}`,
                 color: "#111827",
                 weight: "bold",
-                size: "sm"
+                size: "sm",
+                margin: "sm"
               },
               {
                 type: "text",
