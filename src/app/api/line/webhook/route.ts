@@ -97,10 +97,10 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
           contents: [
             {
               type: 'text',
-              text: `${config.dorms?.name || 'ยินดีต้อนรับค่ะ'}`,
+              text: `${config.dorms?.name || 'หอพัก'} ยินดีต้อนรับค่ะ`,
               weight: 'bold',
               size: 'xl',
-              color: '#1e3a8a'
+              color: '#16A34A'
             }
           ]
         },
