@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     // Handle multiple LINE OAs
     // We need to find which config this webhook belongs to by checking the 'destination' in the body
     const jsonBody = JSON.parse(body);
-    
+
     // Handle LINE Webhook Verification
     if (!jsonBody.events || jsonBody.events.length === 0) {
       return NextResponse.json({ message: 'OK' });
@@ -85,7 +85,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
         .from('line_oa_configs')
         .update({ owner_line_user_id: lineUserId })
         .eq('id', config.id);
-      
+
       await replyText(replyToken, config.access_token, `สวัสดีครับเจ้าของหอ ${config.dorms?.name || ''}! ระบบผูกบัญชีเจ้าของสำหรับรับแจ้งเตือนสลิปเรียบร้อยแล้วครับ`);
     } else {
       // Phase 2, Step 4: Improved Welcome Message for Tenants (Flex Message)
@@ -97,7 +97,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
           contents: [
             {
               type: 'text',
-              text: `${config.dorms?.name || 'ยินดีต้อนรับ'}`,
+              text: `${config.dorms?.name || 'ยินดีต้อนรับค่ะ'}`,
               weight: 'bold',
               size: 'xl',
               color: '#1e3a8a'
@@ -162,7 +162,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
   if (type === 'message') {
     if (event.message.type === 'text') {
       const text = event.message.text.trim();
-      
+
       // Pattern: [RoomNum]-[10-digit Phone] (e.g., "101-0812345678")
       const verifyPattern = /^(\w+)-(\d{10})$/;
       const match = text.match(verifyPattern);
@@ -237,7 +237,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
                     },
                     {
                       type: 'text',
-                      text: 'คุณจะเริ่มรับแจ้งเตือนบิลผ่านทาง LINE ตั้งแต่รอบหน้าเป็นต้นไปครับ',
+                      text: 'คุณจะเริ่มรับแจ้งเตือนบิลผ่านทาง LINE ตั้งแต่รอบหน้าเป็นต้นค่ะ',
                       wrap: true,
                       size: 'xs',
                       color: '#6b7280',
@@ -254,9 +254,9 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
         } else {
           await replyText(replyToken, config.access_token, `ไม่พบหมายเลขห้อง ${roomNum} ในระบบของเราครับ`);
         }
-      } 
+      }
       else if (text.toLowerCase() === 'id') {
-         await replyText(replyToken, config.access_token, `LINE ID ของคุณคือ: ${lineUserId}`);
+        await replyText(replyToken, config.access_token, `LINE ID ของคุณคือ: ${lineUserId}`);
       }
       else {
         // Help message for unrecognized inputs (Flex Message)
@@ -276,7 +276,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
               },
               {
                 type: 'text',
-                text: 'กรุณาพิมพ์ข้อมูลในรูปแบบที่กำหนดเพื่อลงทะเบียน',
+                text: 'กรุณาพิมพ์ข้อมูลในรูปแบบที่กำหนดเพื่อลงทะเบียนห้องพักค่ะ',
                 wrap: true,
                 size: 'sm'
               },
@@ -310,7 +310,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
         };
         await replyFlex(replyToken, config.access_token, 'วิธีการลงทะเบียน', helpFlex);
       }
-    } 
+    }
     else if (event.message.type === 'image') {
       // User sent a slip/image
       console.log('User sent an image/slip. No auto-reply as per owner request.');
@@ -334,10 +334,10 @@ async function replyFlex(replyToken: string, accessToken: string, altText: strin
     },
     body: JSON.stringify({
       replyToken,
-      messages: [{ 
-        type: 'flex', 
+      messages: [{
+        type: 'flex',
         altText: altText,
-        contents: flexContents 
+        contents: flexContents
       }]
     })
   });
