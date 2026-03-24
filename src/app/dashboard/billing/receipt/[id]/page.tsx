@@ -77,7 +77,7 @@ export default function ReceiptPage() {
                     .order('payment_date', { ascending: false })
                     .limit(1)
                     .maybeSingle()
-                
+
                 if (payment?.slip_url) {
                     setSlipUrl(payment.slip_url)
                 }
@@ -97,7 +97,7 @@ export default function ReceiptPage() {
                     .select('name')
                     .eq('id', bill.tenant_id)
                     .single()
-                
+
                 if (tenantError) console.error('Error fetching tenant:', tenantError)
 
                 // 4. Fetch Utility Info for meter readings
@@ -115,7 +115,7 @@ export default function ReceiptPage() {
                 // 5. Fetch Dorm & Settings
                 let dorm = null
                 let settings = null
-                
+
                 if (room?.dorm_id) {
                     const [{ data: d }, { data: s }] = await Promise.all([
                         supabase.from('dorms').select('*').eq('id', room.dorm_id).single(),
@@ -131,9 +131,9 @@ export default function ReceiptPage() {
                 ]
 
                 // Water Logic
-                const isFlatWater = settings?.water_billing_type === 'flat' || 
-                                   (Number(utility?.water_price || 0) > 0 && Number(utility?.water_unit || 0) === 0)
-                
+                const isFlatWater = settings?.water_billing_type === 'flat' ||
+                    (Number(utility?.water_price || 0) > 0 && Number(utility?.water_unit || 0) === 0)
+
                 const waterAmt = Number(utility?.water_price || 0)
                 const electricAmt = Number(utility?.electric_price || 0)
 
@@ -144,7 +144,7 @@ export default function ReceiptPage() {
                         detail: isFlatWater ? '(แบบเหมาจ่าย)' : `มิเตอร์: ${utility?.prev_water_meter || 0} → ${utility?.curr_water_meter || 0} หน่วย`
                     })
                 }
-                
+
                 if (electricAmt > 0 || Number(utility?.electric_unit || 0) > 0) {
                     items.push({
                         name: 'ค่าไฟฟ้า',
@@ -162,7 +162,7 @@ export default function ReceiptPage() {
                 const formattedMonth = format(billingDate, 'MMMM yyyy', { locale: th })
                 const formattedDate = format(new Date(bill.created_at), 'd MMMM yyyy', { locale: th })
                 const monthYearCode = format(billingDate, 'yyyyMM')
-                
+
                 const dueDate = bill.due_date ? format(parseISO(bill.due_date), 'd MMMM yyyy', { locale: th }) : '-'
 
                 setData({
@@ -235,14 +235,14 @@ export default function ReceiptPage() {
         try {
             const { error } = await supabase
                 .from('bills')
-                .update({ 
+                .update({
                     status,
                     paid_at: status === 'paid' ? new Date().toISOString() : null
                 })
                 .eq('id', data.id)
 
             if (error) throw error
-            
+
             // 2. Update payment status if exists
             await supabase
                 .from('payments')

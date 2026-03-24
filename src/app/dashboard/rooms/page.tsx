@@ -184,7 +184,7 @@ function RoomsContent() {
                 .eq('id', roomToDelete.id)
 
             if (error) throw error
-            
+
             setSuccessMsg(`ลบห้อง ${roomToDelete.room_number} เรียบร้อยแล้ว`)
             setShowDeleteModal(false)
             setRoomToDelete(null)
@@ -204,7 +204,7 @@ function RoomsContent() {
 
     const confirmRestore = async () => {
         if (!roomToRestore) return
-        
+
         setSaving(true)
         setErrorMsg('')
         const supabase = createClient()
@@ -215,7 +215,7 @@ function RoomsContent() {
                 .eq('id', roomToRestore.id)
 
             if (error) throw error
-            
+
             setSuccessMsg(`กู้คืนห้อง ${roomToRestore.room_number} เรียบร้อยแล้ว`)
             setShowRestoreModal(false)
             setRoomToRestore(null)
@@ -246,7 +246,7 @@ function RoomsContent() {
         }
 
         const trimmedRoomNumber = newData.room_number.trim()
-        
+
         // 1. Check if room exists and is NOT deleted
         if (rooms.some(r => r.room_number === trimmedRoomNumber && r.deleted_at === null)) {
             setErrorMsg('เลขห้องนี้มีอยู่แล้วในระบบ')
@@ -271,7 +271,7 @@ function RoomsContent() {
                         status: 'available'
                     })
                     .eq('id', deletedRoom.id)
-                
+
                 if (error) throw error
                 setSuccessMsg(`กู้คืนห้อง ${trimmedRoomNumber} จากถังขยะเรียบร้อยแล้ว`)
             } else {
@@ -290,7 +290,7 @@ function RoomsContent() {
                 if (error) throw error
                 setSuccessMsg('เพิ่มห้องเรียบร้อยแล้ว')
             }
-            
+
             setShowAddModal(false)
             fetchData()
             setTimeout(() => setSuccessMsg(''), 3000)
@@ -310,7 +310,7 @@ function RoomsContent() {
 
     const handleConfirmMove = async () => {
         if (!targetRoomId || !movingRoom) return
-        
+
         setSaving(true)
         const supabase = createClient()
         try {
@@ -327,7 +327,7 @@ function RoomsContent() {
 
             // 2. Perform updates in a sequence (simplified transaction simulation)
             // Ideally use RPC for atomicity, but let's try sequence with rollback logic if needed.
-            
+
             // Step A: Update Tenant to new Room
             const { error: tUpdateError } = await supabase
                 .from('tenants')
@@ -409,7 +409,7 @@ function RoomsContent() {
 
                 <div className="flex-1 overflow-y-auto pb-40">
                     <div className="p-6 space-y-8">
-                        
+
                         {errorMsg && !showAddModal && (
                             <div className="bg-red-50 border-2 border-red-500 text-red-600 text-[11px] font-black p-4 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 flex items-center gap-2">
                                 <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
@@ -453,7 +453,7 @@ function RoomsContent() {
                                                 <div className="w-1.5 h-6 bg-green-500 rounded-full" />
                                                 <h3 className="font-black text-gray-800 text-lg tracking-tight">ชั้น {floorNum}</h3>
                                             </div>
-                                            <button 
+                                            <button
                                                 onClick={() => openAddModal(floorNum)}
                                                 className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-xl hover:bg-green-100 transition-all active:scale-95 flex items-center gap-1"
                                             >
@@ -463,7 +463,7 @@ function RoomsContent() {
 
                                         <div className="grid grid-cols-1 gap-3">
                                             {activeRooms.filter(r => r.floor === floorNum).map(room => (
-                                                <div 
+                                                <div
                                                     key={room.id}
                                                     className={`bg-white p-5 rounded-3xl border transition-all duration-300 group
                                                         ${editingRoomId === room.id ? 'border-green-500 ring-4 ring-green-100 shadow-xl' : 'border-gray-100 hover:border-green-200 shadow-sm'}
@@ -474,41 +474,41 @@ function RoomsContent() {
                                                             <div className="grid grid-cols-2 gap-3">
                                                                 <div className="space-y-1">
                                                                     <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">เลขห้อง</label>
-                                                                    <input 
+                                                                    <input
                                                                         type="text"
                                                                         value={editData.room_number || ''}
-                                                                        onChange={e => setEditData({...editData, room_number: e.target.value})}
+                                                                        onChange={e => setEditData({ ...editData, room_number: e.target.value })}
                                                                         className="w-full h-11 bg-gray-50 border-2 border-green-100 rounded-xl px-4 outline-none focus:border-green-500 text-gray-800 font-black"
                                                                     />
                                                                 </div>
                                                                 <div className="space-y-1">
                                                                     <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">ราคา/เดือน</label>
-                                                                    <input 
+                                                                    <input
                                                                         type="number"
                                                                         value={editData.base_price || 0}
-                                                                        onChange={e => setEditData({...editData, base_price: parseInt(e.target.value)})}
+                                                                        onChange={e => setEditData({ ...editData, base_price: parseInt(e.target.value) })}
                                                                         className="w-full h-11 bg-gray-50 border-2 border-green-100 rounded-xl px-4 outline-none focus:border-green-500 text-gray-800 font-black"
                                                                     />
                                                                 </div>
                                                             </div>
                                                             <div className="flex bg-gray-100 p-1 rounded-xl">
-                                                                <button 
-                                                                    onClick={() => setEditData({...editData, room_type: 'fan'})}
+                                                                <button
+                                                                    onClick={() => setEditData({ ...editData, room_type: 'fan' })}
                                                                     className={`flex-1 py-2 text-[11px] font-bold rounded-lg transition-all ${editData.room_type === 'fan' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400'}`}
                                                                 >พัดลม</button>
-                                                                <button 
-                                                                    onClick={() => setEditData({...editData, room_type: 'air'})}
+                                                                <button
+                                                                    onClick={() => setEditData({ ...editData, room_type: 'air' })}
                                                                     className={`flex-1 py-2 text-[11px] font-bold rounded-lg transition-all ${editData.room_type === 'air' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400'}`}
                                                                 >แอร์</button>
                                                             </div>
                                                             <div className="flex gap-2">
-                                                                <button 
+                                                                <button
                                                                     onClick={handleSaveEdit}
                                                                     className="flex-1 bg-green-600 text-white font-bold py-3 rounded-2xl hover:bg-green-700 transition-all flex items-center justify-center gap-2"
                                                                 >
                                                                     <CheckIcon className="w-5 h-5" /> บันทึก
                                                                 </button>
-                                                                <button 
+                                                                <button
                                                                     onClick={() => setEditingRoomId(null)}
                                                                     className="bg-gray-100 text-gray-500 font-bold px-6 rounded-2xl hover:bg-gray-200 transition-all"
                                                                 >
@@ -535,18 +535,18 @@ function RoomsContent() {
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                <button 
+                                                                <button
                                                                     onClick={() => handleEdit(room)}
                                                                     className="w-10 h-10 bg-gray-50 hover:bg-green-50 text-gray-400 hover:text-green-600 rounded-xl transition-all flex items-center justify-center border border-transparent hover:border-green-100"
                                                                 >
                                                                     <PencilSquareIcon className="w-5 h-5" />
                                                                 </button>
-                                                                <button 
+                                                                <button
                                                                     onClick={() => handleDelete(room)}
                                                                     disabled={room.status === 'occupied'}
                                                                     className={`w-10 h-10 rounded-xl transition-all flex items-center justify-center border border-transparent
-                                                                        ${room.status === 'occupied' 
-                                                                            ? 'bg-gray-50 text-gray-200 cursor-not-allowed' 
+                                                                        ${room.status === 'occupied'
+                                                                            ? 'bg-gray-50 text-gray-200 cursor-not-allowed'
                                                                             : 'bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-600 hover:border-red-100'}
                                                                     `}
                                                                 >
@@ -564,7 +564,7 @@ function RoomsContent() {
                                 {/* Deleted Rooms Section */}
                                 {deletedRooms.length > 0 && (
                                     <div className="mt-12 pt-8 border-t border-gray-100">
-                                        <button 
+                                        <button
                                             onClick={() => setShowDeleted(!showDeleted)}
                                             className="flex items-center gap-2 text-gray-400 hover:text-gray-600 transition-all mx-auto"
                                         >
@@ -587,7 +587,7 @@ function RoomsContent() {
                                                                 <p className="text-xs font-bold text-gray-400">ลบเมื่อ: {new Date(room.deleted_at!).toLocaleDateString('th-TH')}</p>
                                                             </div>
                                                         </div>
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleRestore(room)}
                                                             className="px-4 py-2 bg-white border border-green-200 text-green-600 font-bold text-xs rounded-xl hover:bg-green-50 transition-all flex items-center gap-2 shadow-sm"
                                                         >
@@ -607,7 +607,7 @@ function RoomsContent() {
                 {/* ── Add Room Modal ── */}
                 {showAddModal && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-0">
-                        <div 
+                        <div
                             className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
                             onClick={() => setShowAddModal(false)}
                         />
@@ -617,14 +617,14 @@ function RoomsContent() {
                                     <h2 className="text-xl font-black text-white">เพิ่มห้องใหม่</h2>
                                     <p className="text-green-50 text-[10px] font-bold">ชั้น {newData.floor}</p>
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => setShowAddModal(false)}
                                     className="w-10 h-10 bg-white/20 hover:bg-white/30 text-white rounded-2xl flex items-center justify-center transition-all"
                                 >
                                     <XMarkIcon className="w-6 h-6 stroke-[3]" />
                                 </button>
                             </div>
-                            
+
                             <div className="p-8 space-y-6">
                                 {errorMsg && (
                                     <div className="bg-red-50 text-red-600 text-[11px] font-black p-4 rounded-xl flex items-center gap-2 border border-red-100">
@@ -636,11 +636,11 @@ function RoomsContent() {
                                 <div className="space-y-4">
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">เลขห้อง</label>
-                                        <input 
+                                        <input
                                             autoFocus
                                             type="text"
                                             value={newData.room_number}
-                                            onChange={e => setNewData({...newData, room_number: e.target.value})}
+                                            onChange={e => setNewData({ ...newData, room_number: e.target.value })}
                                             className="w-full h-14 bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 outline-none focus:border-green-500 font-black text-gray-800 transition-all text-lg"
                                         />
                                     </div>
@@ -648,10 +648,10 @@ function RoomsContent() {
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">ราคาต่อเดือน</label>
                                         <div className="relative">
-                                            <input 
+                                            <input
                                                 type="number"
                                                 value={newData.base_price || ''}
-                                                onChange={e => setNewData({...newData, base_price: parseInt(e.target.value) || 0})}
+                                                onChange={e => setNewData({ ...newData, base_price: parseInt(e.target.value) || 0 })}
                                                 className="w-full h-14 bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 pr-12 outline-none focus:border-green-500 font-black text-gray-800 transition-all text-lg"
                                             />
                                             <span className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 font-bold">฿</span>
@@ -661,19 +661,19 @@ function RoomsContent() {
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">ประเภทห้อง</label>
                                         <div className="flex bg-gray-50 p-1.5 rounded-2xl border-2 border-gray-100">
-                                            <button 
-                                                onClick={() => setNewData({...newData, room_type: 'fan'})}
+                                            <button
+                                                onClick={() => setNewData({ ...newData, room_type: 'fan' })}
                                                 className={`flex-1 py-3 text-xs font-black rounded-[0.9rem] transition-all flex items-center justify-center gap-2 ${newData.room_type === 'fan' ? 'bg-white text-green-600 shadow-sm border border-green-100' : 'text-gray-400'}`}
                                             >พัดลม</button>
-                                            <button 
-                                                onClick={() => setNewData({...newData, room_type: 'air'})}
+                                            <button
+                                                onClick={() => setNewData({ ...newData, room_type: 'air' })}
                                                 className={`flex-1 py-3 text-xs font-black rounded-[0.9rem] transition-all flex items-center justify-center gap-2 ${newData.room_type === 'air' ? 'bg-white text-green-600 shadow-sm border border-green-100' : 'text-gray-400'}`}
                                             >แอร์</button>
                                         </div>
                                     </div>
                                 </div>
 
-                                <button 
+                                <button
                                     onClick={handleConfirmAdd}
                                     disabled={saving}
                                     className="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-black rounded-2xl shadow-xl shadow-green-100 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
@@ -688,7 +688,7 @@ function RoomsContent() {
                 {/* ── Move Room Modal ── */}
                 {showMoveModal && movingRoom && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-0">
-                        <div 
+                        <div
                             className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
                             onClick={() => setShowMoveModal(false)}
                         />
@@ -698,14 +698,14 @@ function RoomsContent() {
                                     <h2 className="text-xl font-black text-gray-800 tracking-tight text-green-600">ย้ายห้องพัก</h2>
                                     <p className="text-gray-400 text-[10px] font-bold">จากห้อง: {movingRoom.room_number}</p>
                                 </div>
-                                <button 
+                                <button
                                     onClick={() => setShowMoveModal(false)}
                                     className="w-10 h-10 bg-gray-50 hover:bg-gray-100 text-gray-400 rounded-2xl flex items-center justify-center transition-all"
                                 >
                                     <XMarkIcon className="w-6 h-6 stroke-[3]" />
                                 </button>
                             </div>
-                            
+
                             <div className="p-8 space-y-6">
                                 {errorMsg && (
                                     <div className="bg-red-50 text-red-600 text-[11px] font-black p-4 rounded-xl flex items-center gap-2 border border-red-100">
@@ -724,8 +724,8 @@ function RoomsContent() {
                                                     key={targetRoom.id}
                                                     onClick={() => setTargetRoomId(targetRoom.id)}
                                                     className={`w-full p-4 rounded-2xl border-2 transition-all flex items-center justify-between
-                                                        ${targetRoomId === targetRoom.id 
-                                                            ? 'border-green-500 bg-green-50/50 ring-4 ring-green-50' 
+                                                        ${targetRoomId === targetRoom.id
+                                                            ? 'border-green-500 bg-green-50/50 ring-4 ring-green-50'
                                                             : 'border-gray-50 bg-gray-50/30 hover:border-green-100 hover:bg-green-50/20'}
                                                     `}
                                                 >
@@ -754,7 +754,7 @@ function RoomsContent() {
                                     </div>
                                 </div>
 
-                                <button 
+                                <button
                                     onClick={handleConfirmMove}
                                     disabled={saving || !targetRoomId}
                                     className="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-black rounded-2xl shadow-xl shadow-green-100 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
@@ -769,7 +769,7 @@ function RoomsContent() {
                 {/* ── Delete Confirmation Modal ── */}
                 {showDeleteModal && roomToDelete && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-0">
-                        <div 
+                        <div
                             className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
                             onClick={() => setShowDeleteModal(false)}
                         />
@@ -779,9 +779,9 @@ function RoomsContent() {
                                     <TrashIcon className="w-10 h-10 text-red-500" />
                                 </div>
                                 <h2 className="text-2xl font-black text-gray-800 tracking-tight">ยืนยันการลบ?</h2>
-                                <p className="text-gray-400 text-xs font-bold mt-2 px-6">คุณกำลังจะลบห้องหมายเลข {roomToDelete.room_number} <br/> ข้อมูลจะถูกย้ายไปเก็บไว้ในถังขยะ</p>
+                                <p className="text-gray-400 text-xs font-bold mt-2 px-6">คุณกำลังจะลบห้องหมายเลข {roomToDelete.room_number} <br /> ข้อมูลจะถูกย้ายไปเก็บไว้ในถังขยะ</p>
                             </div>
-                            
+
                             <div className="p-8 space-y-4">
                                 <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
                                     <p className="text-[11px] text-red-600 font-black leading-relaxed">
@@ -790,13 +790,13 @@ function RoomsContent() {
                                 </div>
 
                                 <div className="flex gap-3">
-                                    <button 
+                                    <button
                                         onClick={() => setShowDeleteModal(false)}
                                         className="flex-1 py-4 bg-gray-50 hover:bg-gray-100 text-gray-500 font-black rounded-2xl transition-all active:scale-95"
                                     >
                                         ยกเลิก
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={confirmDelete}
                                         disabled={saving}
                                         className="flex-1 py-4 bg-red-500 hover:bg-red-600 text-white font-black rounded-2xl shadow-lg shadow-red-100 transition-all active:scale-95 flex items-center justify-center disabled:opacity-50"
@@ -812,7 +812,7 @@ function RoomsContent() {
                 {/* ── Restore Confirmation Modal ── */}
                 {showRestoreModal && roomToRestore && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-0">
-                        <div 
+                        <div
                             className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
                             onClick={() => setShowRestoreModal(false)}
                         />
@@ -822,18 +822,18 @@ function RoomsContent() {
                                     <ArrowPathIcon className="w-10 h-10 text-green-500" />
                                 </div>
                                 <h2 className="text-2xl font-black text-gray-800 tracking-tight">กู้คืนห้องพัก?</h2>
-                                <p className="text-gray-400 text-xs font-bold mt-2 px-6">ต้องการนำห้องหมายเลข {roomToRestore.room_number} <br/> กลับมาเปิดให้เช่าอีกครั้งใช่หรือไม่?</p>
+                                <p className="text-gray-400 text-xs font-bold mt-2 px-6">ต้องการนำห้องหมายเลข {roomToRestore.room_number} <br /> กลับมาเปิดให้เช่าอีกครั้งใช่หรือไม่?</p>
                             </div>
-                            
+
                             <div className="p-8 space-y-6">
                                 <div className="flex gap-3">
-                                    <button 
+                                    <button
                                         onClick={() => setShowRestoreModal(false)}
                                         className="flex-1 py-4 bg-gray-50 hover:bg-gray-100 text-gray-500 font-black rounded-2xl transition-all active:scale-95"
                                     >
                                         ยกเลิก
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={confirmRestore}
                                         disabled={saving}
                                         className="flex-1 py-4 bg-green-600 hover:bg-green-700 text-white font-black rounded-2xl shadow-lg shadow-green-100 transition-all active:scale-95 flex items-center justify-center disabled:opacity-50"
@@ -847,7 +847,7 @@ function RoomsContent() {
                 )}
 
                 <div className="absolute bottom-10 left-6 right-6 z-20">
-                    <button 
+                    <button
                         onClick={() => router.push('/dashboard')}
                         className="w-full py-4 bg-white border border-gray-100 shadow-xl rounded-2xl font-black text-gray-500 hover:text-green-600 transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
