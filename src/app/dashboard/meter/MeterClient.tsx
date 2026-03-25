@@ -180,7 +180,7 @@ export default function MeterClient() {
                         roomsData.forEach((r: any) => {
                             const activeTenant = (r.tenants as any[])?.find(t => t.status === 'active')
                             const roomUtils = utilsData?.filter(u => u.room_id === r.id) || []
-                            
+
                             // Find current and previous records specifically for THIS tenant
                             const currRec = roomUtils.find((u: any) => u.meter_date.startsWith(selectedMonth) && u.tenant_id === activeTenant?.id)
 
@@ -343,7 +343,7 @@ export default function MeterClient() {
 
             setInlineSuccess(true)
             setTimeout(() => setInlineSuccess(false), 3000)
-            fetchData() 
+            fetchData()
         } catch (err: any) {
             setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล')
         } finally {
@@ -621,8 +621,15 @@ export default function MeterClient() {
                                         <div key={room.id} className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm space-y-5">
                                             <div className="flex items-center justify-between border-b border-gray-50 pb-3">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-lg font-black text-gray-800">ห้อง {room.room_number}</span>
-                                                    <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md font-bold">ชั้น {room.floor}</span>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-lg font-black text-gray-800">ห้อง {room.room_number}</span>
+                                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                                            <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md font-bold shrink-0">ชั้น {room.floor}</span>
+                                                            <span className="text-[11px] font-black text-emerald-600 truncate max-w-[120px]">
+                                                                {(room as any).tenants?.find((t: any) => t.status === 'active')?.name || 'ไม่พบรายชื่อ'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                                 {roomsWithBills[room.id] && (
                                                     <span className="text-[10px] font-black text-white bg-blue-500 px-3 py-1 rounded-full shadow-sm shadow-blue-100 flex items-center gap-1">
@@ -639,14 +646,14 @@ export default function MeterClient() {
                                                                 <div className="w-5 h-5 flex items-center justify-center">
                                                                     <BoltIcon className="w-4 h-4 text-orange-400" />
                                                                 </div>
-                                                                <span className="text-xs font-bold text-gray-600">มิเตอร์ไฟ (หน่วย)</span>
+                                                                <span className="text-xs font-bold text-black-600">มิเตอร์ไฟ (หน่วย)</span>
                                                             </div>
                                                             <span className="text-[10px] font-black text-orange-500 bg-orange-50 px-2 py-0.5 rounded-md border border-orange-100">
                                                                 {electricRate.toLocaleString()}.-/หน่วย
                                                             </span>
                                                         </div>
                                                         <div className="space-y-2">
-                                                            <div className="flex justify-between items-center text-[10px] text-gray-400 font-bold px-1">
+                                                            <div className="flex justify-between items-center text-[10px] text-black-400 font-bold px-1">
                                                                 <span>เลขเดือนก่อน:</span>
                                                                 <div className={`w-[85px] flex items-center justify-between bg-gray-50 rounded-lg px-2 py-0.5 border ${p.isInitial ? 'border-dashed border-gray-300' : 'border-gray-200'}`}>
                                                                     <input
@@ -686,7 +693,7 @@ export default function MeterClient() {
                                                                 <div className="w-5 h-5 flex items-center justify-center">
                                                                     <span className="text-sm leading-none pt-0.5">💧</span>
                                                                 </div>
-                                                                <span className="text-xs font-bold text-gray-600">มิเตอร์น้ำ (หน่วย)</span>
+                                                                <span className="text-xs font-bold text-black-600">มิเตอร์น้ำ (หน่วย)</span>
                                                             </div>
                                                             {waterBillingType === 'flat_rate' ? (
                                                                 <span className="text-[10px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
@@ -699,7 +706,7 @@ export default function MeterClient() {
                                                             )}
                                                         </div>
                                                         <div className="space-y-2">
-                                                            <div className="flex justify-between items-center text-[10px] text-gray-400 font-bold px-1">
+                                                            <div className="flex justify-between items-center text-[10px] text-black-400 font-bold px-1">
                                                                 <span>เลขเดือนก่อน:</span>
                                                                 <div className={`w-[85px] flex items-center justify-between bg-gray-50 rounded-lg px-2 py-0.5 border ${p.isInitial ? 'border-dashed border-gray-300' : 'border-gray-200'}`}>
                                                                     <input

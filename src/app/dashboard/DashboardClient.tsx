@@ -71,6 +71,7 @@ interface Room {
         phone: string | null;
         line_user_id: string | null;
         status: string;
+        planned_move_out_date?: string | null;
     }[];
     dorm_id: string;
     deleted_at: string | null;
@@ -95,7 +96,7 @@ interface TenantContract {
     start_date: string;
     end_date: string;
     deposit_amount: number;
-    status: 'pending' | 'moved_in' | 'cancelled';
+    status: 'pending' | 'moved_in' | 'cancelled' | 'expired';
     created_at: string;
 }
 
@@ -116,17 +117,20 @@ export default function DashboardClient() {
     const [userName, setUserName] = useState('')
     const [dbError, setDbError] = useState('') // added error state
     const [isMenuOpen, setIsMenuOpen] = useState(false) // for user dropdown
+    const [isNotificationsOpen, setIsNotificationsOpen] = useState(false) // for notifications dropdown
     const [pendingRoomIds, setPendingRoomIds] = useState<Set<string>>(new Set())
     const [waitingVerifyRoomIds, setWaitingVerifyRoomIds] = useState<Set<string>>(new Set())
     const [unpaidRoomIds, setUnpaidRoomIds] = useState<Set<string>>(new Set())
     const [overdueRoomIds, setOverdueRoomIds] = useState<Set<string>>(new Set())
+    const [movingOutRoomIds, setMovingOutRoomIds] = useState<Set<string>>(new Set())
     const [selectedFloor, setSelectedFloor] = useState<string>('all')
     const [selectedStatus, setSelectedStatus] = useState<string>('all')
     const [stats, setStats] = useState({
         total: 0,
         occupied: 0,
         vacant: 0,
-        pendingPayments: 0
+        pendingPayments: 0,
+        movingOut: 0
     })
 
     // Settings States
@@ -149,6 +153,8 @@ export default function DashboardClient() {
         water_billing_type: 'per_unit' as 'per_unit' | 'flat_rate',
         water_flat_rate: 0
     })
+
+    const [contractTab, setContractTab] = useState<'pending' | 'active' | 'old'>('active');
 
     // Label formatting for Buddhist Era
     const formatThaiDate = (dateStr: string) => {
@@ -637,7 +643,7 @@ export default function DashboardClient() {
             // 2. Get Rooms & Tenants
             const { data: roomsData, error: roomsError } = await supabase
                 .from('rooms')
-                .select('*, tenants(id, name, phone, line_user_id, status)')
+                .select('*, tenants(id, name, phone, line_user_id, status, planned_move_out_date)')
                 .eq('dorm_id', currentDorm.id)
                 .is('deleted_at', null)
                 .order('room_number', { ascending: true });
@@ -688,11 +694,12 @@ export default function DashboardClient() {
             let waterAmt = 0;
             let electric = 0;
             let electricAmt = 0;
-            let counts = { paid: 0, waiting_verify: 0, unpaid: 0, overdue: 0 };
+            let counts: { paid: number, waiting_verify: number, unpaid: number, overdue: number, movingOut: number, overdueAmount: number } = { paid: 0, waiting_verify: 0, unpaid: 0, overdue: 0, movingOut: 0, overdueAmount: 0 };
             const pendingIdsSet = new Set<string>();
             const waitingVerifyIdsSet = new Set<string>();
             const unpaidIdsSet = new Set<string>();
             const overdueIdsSet = new Set<string>();
+            const movingOutIdsSet = new Set<string>();
 
             // Map to track the "Best" status for each room this month
             // Priority: paid > waiting_verify > overdue > unpaid
@@ -744,6 +751,7 @@ export default function DashboardClient() {
                         roomBestStatus.set(b.room_id, 'waiting_verify');
                     }
                 } else if (isOverdue || s === 'overdue') {
+                    counts.overdueAmount += totalAmt;
                     if (currentBest !== 'paid' && currentBest !== 'waiting_verify') {
                         roomBestStatus.set(b.room_id, 'overdue');
                     }
@@ -752,6 +760,14 @@ export default function DashboardClient() {
                     if (currentBest !== 'paid' && currentBest !== 'waiting_verify' && currentBest !== 'overdue') {
                         roomBestStatus.set(b.room_id, 'unpaid');
                     }
+                }
+            });
+
+            // 3.1 Check for Moving Out Status (Notice Given)
+            activeRooms.forEach(room => {
+                const activeTenant = (room.tenants as any[])?.find(t => t.status === 'active');
+                if (activeTenant?.planned_move_out_date) {
+                    movingOutIdsSet.add(room.id);
                 }
             });
 
@@ -774,17 +790,21 @@ export default function DashboardClient() {
                 }
             });
 
-            console.log("Room Stats (Grouped):", counts);
+            counts.movingOut = movingOutIdsSet.size;
+
+            console.log("Room Stats (Grouped):", counts as any);
             setPendingRoomIds(pendingIdsSet);
             setWaitingVerifyRoomIds(waitingVerifyIdsSet);
             setUnpaidRoomIds(unpaidIdsSet);
             setOverdueRoomIds(overdueIdsSet);
+            setMovingOutRoomIds(movingOutIdsSet);
 
             setStats({
                 total: activeRooms.length,
                 occupied: activeRooms.filter(r => r.status === 'occupied').length,
                 vacant: activeRooms.filter(r => r.status === 'available').length,
-                pendingPayments: pendingIdsSet.size
+                pendingPayments: pendingIdsSet.size,
+                movingOut: movingOutIdsSet.size
             });
 
             // Process History
@@ -1004,7 +1024,7 @@ export default function DashboardClient() {
                 </div>
 
                 {/* Search Bar */}
-                <div className="px-6 mb-4">
+                <div className="px-6 mb-4 space-y-4">
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                             <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 group-focus-within:text-green-500 transition-colors" />
@@ -1016,6 +1036,31 @@ export default function DashboardClient() {
                             className="w-full h-14 bg-white border-2 border-gray-100 rounded-2xl pl-12 pr-4 font-bold text-gray-900 focus:border-green-500 focus:bg-white transition-all outline-none shadow-sm"
                             placeholder="ค้นหาตาม ชื่อ หรือ เบอร์โทรศัพท์..."
                         />
+                    </div>
+
+                    {/* Category Tabs */}
+                    <div className="bg-gray-50 p-1.5 rounded-[2rem] flex gap-1 border border-gray-100/50 shadow-inner">
+                        <button
+                            onClick={() => setContractTab('active')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[1.5rem] font-black text-[13px] transition-all duration-300 ${contractTab === 'active' ? 'bg-white text-blue-600 shadow-md ring-1 ring-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            <UsersIcon className="w-4 h-4" />
+                            กำลังเข้าพัก
+                        </button>
+                        <button
+                            onClick={() => setContractTab('pending')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[1.5rem] font-black text-[13px] transition-all duration-300 ${contractTab === 'pending' ? 'bg-white text-blue-600 shadow-md ring-1 ring-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            <PlusIcon className="w-4 h-4" />
+                            สัญญาใหม่
+                        </button>
+                        <button
+                            onClick={() => setContractTab('old')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[1.5rem] font-black text-[13px] transition-all duration-300 ${contractTab === 'old' ? 'bg-white text-green-600 shadow-md ring-1 ring-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            <ClockIcon className="w-4 h-4" />
+                            สัญญาเก่า
+                        </button>
                     </div>
                 </div>
 
@@ -1035,10 +1080,18 @@ export default function DashboardClient() {
                     ) : (() => {
                         const filtered = contracts.filter(c => {
                             const query = contractSearchQuery.toLowerCase();
-                            return (
-                                c.name.toLowerCase().includes(query) ||
-                                c.phone.includes(query)
-                            );
+                            const matchesSearch = c.name.toLowerCase().includes(query) || c.phone.includes(query);
+
+                            let matchesTab = false;
+                            if (contractTab === 'active') {
+                                matchesTab = c.status === 'moved_in';
+                            } else if (contractTab === 'pending') {
+                                matchesTab = c.status === 'pending';
+                            } else if (contractTab === 'old') {
+                                matchesTab = c.status === 'cancelled' || c.status === 'expired';
+                            }
+
+                            return matchesSearch && matchesTab;
                         });
 
                         if (filtered.length === 0) {
@@ -1057,13 +1110,27 @@ export default function DashboardClient() {
                                 {filtered.map((contract) => (
                                     <div
                                         key={contract.id}
-                                        className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-green-100 transition-all group relative overflow-hidden"
+                                        className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-blue-100 transition-all group relative overflow-hidden"
                                     >
-                                        <div className="absolute top-0 right-0 w-24 h-24 bg-green-50/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                                        <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+
+                                        {/* Status Badge */}
+                                        <div className="absolute top-4 right-16 z-20">
+                                            {contract.status === 'moved_in' && (
+                                                <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black border border-blue-100 uppercase tracking-widest">
+                                                    พักอยู่ปัจจุบัน
+                                                </span>
+                                            )}
+                                            {(contract.status === 'cancelled' || contract.status === 'expired') && (
+                                                <span className="px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-[10px] font-black border border-gray-200 uppercase tracking-widest">
+                                                    สัญญาสิ้นสุด
+                                                </span>
+                                            )}
+                                        </div>
 
                                         <div className="flex items-start justify-between relative z-10">
                                             <div className="flex items-start gap-4">
-                                                <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-green-600 border border-green-100 group-hover:bg-green-600 group-hover:text-white transition-colors duration-300">
+                                                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
                                                     <UserIcon className="w-6 h-6" />
                                                 </div>
                                                 <div>
@@ -1077,18 +1144,20 @@ export default function DashboardClient() {
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => openEditContract(contract)}
-                                                    className="w-10 h-10 bg-gray-50 text-gray-400 hover:bg-blue-50 hover:text-blue-600 rounded-xl flex items-center justify-center transition-all active:scale-90"
+                                                    className="w-10 h-10 bg-gray-50 text-gray-400 hover:bg-green-50 hover:text-green-600 rounded-xl flex items-center justify-center transition-all active:scale-90"
                                                     title="แก้ไข"
                                                 >
                                                     <PencilSquareIcon className="w-5 h-5" />
                                                 </button>
-                                                <button
-                                                    onClick={() => handleDeleteContract(contract.id)}
-                                                    className="w-10 h-10 bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-xl flex items-center justify-center transition-all active:scale-90"
-                                                    title="ลบ"
-                                                >
-                                                    <TrashIcon className="w-5 h-5" />
-                                                </button>
+                                                {contract.status !== 'moved_in' && (
+                                                    <button
+                                                        onClick={() => handleDeleteContract(contract.id)}
+                                                        className="w-10 h-10 bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-xl flex items-center justify-center transition-all active:scale-90"
+                                                        title="ลบ"
+                                                    >
+                                                        <TrashIcon className="w-5 h-5" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
 
@@ -1118,13 +1187,15 @@ export default function DashboardClient() {
                                                     </div>
                                                 )}
                                             </div>
-                                            <button
-                                                onClick={() => router.push(`/dashboard/tenants/new?from_contract=${contract.id}`)}
-                                                className="text-[11px] font-black text-green-600 hover:text-green-700 flex items-center gap-1 group/btn"
-                                            >
-                                                ย้ายเข้าพักจริง
-                                                <ChevronRightIcon className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
-                                            </button>
+                                            {contract.status === 'pending' && (
+                                                <button
+                                                    onClick={() => router.push(`/dashboard/tenants/new?from_contract=${contract.id}`)}
+                                                    className="text-[11px] font-black text-green-600 hover:text-green-700 flex items-center gap-1 group/btn"
+                                                >
+                                                    ย้ายเข้าพักจริง
+                                                    <ChevronRightIcon className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -1376,6 +1447,123 @@ export default function DashboardClient() {
             </div>
         );
     }
+
+    const renderNotificationsPopover = () => {
+        if (!isNotificationsOpen) return null;
+
+        // Derive notifications from existing room states
+        const notifications: { id: string; type: 'verify' | 'overdue' | 'move_out'; title: string; description: string; roomId: string; date?: string }[] = [];
+
+        rooms.forEach(room => {
+            if (waitingVerifyRoomIds.has(room.id)) {
+                notifications.push({
+                    id: `verify-${room.id}`,
+                    type: 'verify',
+                    title: `ห้อง ${room.room_number} • รอยืนยันสลิป`,
+                    description: 'ผู้เช่าแจ้งชำระเงินแล้ว กรุณาตรวจสอบความถูกต้อง',
+                    roomId: room.id
+                });
+            }
+            if (overdueRoomIds.has(room.id)) {
+                notifications.push({
+                    id: `overdue-${room.id}`,
+                    type: 'overdue',
+                    title: `ห้อง ${room.room_number} • ค้างชำระ`,
+                    description: 'เกินกำหนดชำระเงินแล้ว กรุณาติดตามการชำระ',
+                    roomId: room.id
+                });
+            }
+            const activeTenant = room.tenants?.find(t => t.status === 'active');
+            if (activeTenant?.planned_move_out_date) {
+                const moveOutDate = new Date(activeTenant.planned_move_out_date);
+                const today = new Date();
+                const diffTime = moveOutDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays <= 7 && diffDays >= 0) {
+                    notifications.push({
+                        id: `move-out-${room.id}`,
+                        type: 'move_out',
+                        title: `ห้อง ${room.room_number} • แจ้งย้ายออก`,
+                        description: `จะย้ายออกในวันที่ ${formatThaiDate(activeTenant.planned_move_out_date)} (อีก ${diffDays} วัน)`,
+                        roomId: room.id,
+                        date: activeTenant.planned_move_out_date
+                    });
+                }
+            }
+        });
+
+        return (
+            <>
+                <div 
+                    className="fixed inset-0 z-[105] bg-black/5" 
+                    onClick={() => setIsNotificationsOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-4 w-[320px] bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-gray-100 z-[110] overflow-hidden animate-in fade-in zoom-in-95 duration-300 origin-top-right">
+                    <div className="px-6 py-5 bg-gradient-to-b from-gray-50/80 to-white border-b border-gray-100 flex items-center justify-between">
+                        <div>
+                            <h3 className="text-[17px] font-black text-gray-800 tracking-tight leading-none">รายการที่ต้องดำเนินการ</h3>
+                            <p className="text-[10px] font-black text-gray-400 mt-1.5 uppercase tracking-widest">Action Required</p>
+                        </div>
+                        {notifications.length > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full ring-4 ring-red-50">
+                                {notifications.length}
+                            </span>
+                        )}
+                    </div>
+                    
+                    <div className="max-h-[400px] overflow-y-auto px-2 py-2 custom-scrollbar">
+                        {notifications.length === 0 ? (
+                            <div className="py-12 flex flex-col items-center justify-center text-center px-6">
+                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-4">
+                                    <BellIcon className="w-8 h-8" />
+                                </div>
+                                <p className="text-sm font-black text-gray-700">ไม่มีรายการค้างในขณะนี้</p>
+                                <p className="text-[11px] font-bold text-gray-400 mt-1">ยินดีด้วย! คุณจัดการทุกอย่างเรียบร้อยแล้ว</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-1">
+                                {notifications.map((notif) => (
+                                    <button
+                                        key={notif.id}
+                                        onClick={() => {
+                                            setIsNotificationsOpen(false);
+                                            router.push(`/dashboard/billing?roomId=${notif.roomId}`);
+                                        }}
+                                        className="w-full text-left p-4 rounded-2xl hover:bg-gray-50 transition-all group flex gap-4"
+                                    >
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border-2 border-white shadow-sm ${
+                                            notif.type === 'verify' ? 'bg-sky-50 text-sky-500' : 
+                                            notif.type === 'overdue' ? 'bg-orange-50 text-orange-500' : 
+                                            'bg-amber-50 text-amber-500'
+                                        }`}>
+                                            {notif.type === 'verify' && <ClockIcon className="w-5 h-5 stroke-[2.5]" />}
+                                            {notif.type === 'overdue' && <ExclamationTriangleIcon className="w-5 h-5 stroke-[2.5]" />}
+                                            {notif.type === 'move_out' && <ArrowRightOnRectangleIcon className="w-5 h-5 stroke-[2.5]" />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-black text-gray-800 leading-tight group-hover:text-primary transition-colors">{notif.title}</p>
+                                            <p className="text-[11px] font-bold text-gray-400 mt-1 leading-snug">{notif.description}</p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="p-4 bg-gray-50/50 border-t border-gray-100 mt-auto">
+                        <button 
+                            onClick={() => { setIsNotificationsOpen(false); router.push('/dashboard/billing'); }}
+                            className="w-full h-12 bg-white border-2 border-gray-100 hover:border-primary/30 rounded-xl text-xs font-black text-gray-600 hover:text-primary transition-all flex items-center justify-center gap-2 shadow-sm"
+                        >
+                            จัดการบิลทั้งหมด
+                            <ChevronRightIcon className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            </>
+        );
+    }
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -1409,10 +1597,22 @@ export default function DashboardClient() {
                                 <div className="relative z-20 flex justify-between items-center mb-10 px-1">
                                     <span className="text-xl sm:text-2xl font-black tracking-tight text-white">HORPAY</span>
                                     <div className="flex items-center gap-2.5">
-                                        <button className="relative w-12 h-12 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-2xl flex items-center justify-center text-white transition-all active:scale-95 border border-white/20 shadow-sm">
-                                            <span className="material-symbols-outlined text-[26px]">notifications</span>
-                                            <div className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-400 rounded-full border-2 border-[#10b981]" />
-                                        </button>
+                                        <div className="relative">
+                                            <button 
+                                                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                                                className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all active:scale-95 border shadow-sm backdrop-blur-md ${
+                                                    isNotificationsOpen 
+                                                        ? 'bg-white text-primary border-white' 
+                                                        : 'bg-white/20 hover:bg-white/30 text-white border-white/20'
+                                                }`}
+                                            >
+                                                <span className="material-symbols-outlined text-[26px]">notifications</span>
+                                                {(waitingVerifyRoomIds.size + overdueRoomIds.size + (movingOutRoomIds.size)) > 0 && (
+                                                    <div className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-primary animate-pulse" />
+                                                )}
+                                            </button>
+                                            {renderNotificationsPopover()}
+                                        </div>
                                         <div className="relative">
                                             <div
                                                 onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -1495,8 +1695,10 @@ export default function DashboardClient() {
                                 {[
                                     { icon: 'grid_view', label: 'ห้องทั้งหมด', value: stats.total, color: 'bg-emerald-50 text-emerald-500' },
                                     { icon: 'home', label: 'ห้องว่าง', value: stats.vacant, color: 'bg-green-50 text-green-500' },
-                                    { icon: 'group', label: 'มีผู้เช่า', value: stats.occupied, color: 'bg-teal-50 text-teal-500' },
-                                    { icon: 'payments', label: 'ยอดค้าง/รอตรวจ', value: stats.pendingPayments, color: 'bg-orange-50 text-orange-500' },
+                                    { icon: 'group', label: 'มีคนพัก', value: stats.occupied, color: 'bg-blue-50 text-blue-500' },
+                                    { icon: 'payments', label: 'รอชำระ', value: (overviewData.billStatusCounts?.unpaid || 0) + (overviewData.billStatusCounts?.waiting_verify || 0), color: 'bg-sky-50 text-sky-500' },
+                                    { icon: 'priority_high', label: 'ค้างชำระ', value: (overviewData.billStatusCounts as any).overdue || 0, color: 'bg-orange-50 text-orange-500' },
+                                    { icon: 'logout', label: 'แจ้งออก', value: stats.movingOut, color: 'bg-amber-50 text-amber-500' },
                                 ].map((item) => (
                                     <div key={item.label} className="bg-white p-5 rounded-3xl shadow-sm flex items-center gap-4 transform hover:-translate-y-1 transition-all duration-300">
                                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${item.color}`}>
@@ -1563,22 +1765,22 @@ export default function DashboardClient() {
                                                     <div>
                                                         <p className="text-[10px] font-black text-slate-800 uppercase leading-none mb-1.5">ห้อง {room.room_number}</p>
                                                         <h3 className="text-sm font-black text-gray-800 tracking-tight leading-none">
-                                                            {room.tenants?.[0]?.name || 'ไม่พบรายชื่อ'}
+                                                            {room.tenants?.find(t => t.status === 'active')?.name || 'ไม่พบผู้พัก'}
                                                         </h3>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     {waitingVerifyRoomIds.has(room.id) ? (
-                                                        <div className="h-8 px-3 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center">
-                                                            <span className="text-[10px] font-black uppercase text-blue-600">รอตรวจสอบ</span>
+                                                        <div className="h-8 px-3 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center">
+                                                            <span className="text-[10px] font-black uppercase text-sky-600">รอตรวจสอบ</span>
                                                         </div>
                                                     ) : overdueRoomIds.has(room.id) ? (
-                                                        <div className="h-8 px-3 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center">
-                                                            <span className="text-[10px] font-black uppercase text-red-700">เกินกำหนด</span>
+                                                        <div className="h-8 px-3 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center">
+                                                            <span className="text-[10px] font-black uppercase text-orange-600">ค้างชำระ</span>
                                                         </div>
                                                     ) : (
-                                                        <div className="h-8 px-3 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center">
-                                                            <span className="text-[10px] font-black uppercase text-orange-600">รอชำระ</span>
+                                                        <div className="h-8 px-3 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center">
+                                                            <span className="text-[10px] font-black uppercase text-sky-600">รอชำระ</span>
                                                         </div>
                                                     )}
                                                     <span className="material-symbols-outlined text-slate-500 group-hover:text-primary transition-colors text-sm">chevron_right</span>
@@ -1638,9 +1840,15 @@ export default function DashboardClient() {
                                                 />
                                             </div>
                                         </div>
-                                        <div className="flex justify-between text-xs font-bold pt-2 border-t border-green-200/50 text-green-600">
-                                            <span>ยังไม่เก็บ</span>
-                                            <span className="text-green-800">฿{overviewData.pendingRevenue.toLocaleString()}</span>
+                                        <div className="space-y-1.5 pt-2 border-t border-green-200/50">
+                                            <div className="flex justify-between text-[11px] font-bold text-green-600">
+                                                <span>รอชำระ (เดือนนี้)</span>
+                                                <span className="text-green-800">฿{(overviewData.pendingRevenue - (overviewData.billStatusCounts as any).overdueAmount || 0).toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[11px] font-bold text-orange-600">
+                                                <span>ค้างชำระ (เกินกำหนด)</span>
+                                                <span className="text-orange-800">฿{(overviewData.billStatusCounts as any).overdueAmount || 0}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1684,7 +1892,7 @@ export default function DashboardClient() {
                                             <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
                                                 <UsersIcon className="w-4 h-4" />
                                             </div>
-                                            <span className="text-[11px] font-black text-blue-900 uppercase">อัตราพัก</span>
+                                            <span className="text-[11px] font-black text-blue-900 uppercase">อัตราเข้าพัก</span>
                                         </div>
                                         <div className="flex items-end gap-2">
                                             <span className="text-2xl font-black text-emerald-600">{overviewData.occupancyRate}%</span>
@@ -1737,14 +1945,14 @@ export default function DashboardClient() {
                                             className="p-3.5 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors group"
                                         >
                                             <div className="flex items-center gap-3">
-                                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                                                    <ClockIcon className="w-4 h-4" />
+                                                <div className="w-6 h-6 rounded-full bg-sky-100 flex items-center justify-center text-sky-600">
+                                                    <BellIcon className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-sm font-bold text-gray-700 group-hover:text-blue-600 transition-colors">รอยืนยันสลิป</span>
+                                                <span className="text-sm font-bold text-gray-700 group-hover:text-sky-600 transition-colors">รอชำระ</span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-sm font-black text-emerald-600">{overviewData.billStatusCounts.waiting_verify} ห้อง</span>
-                                                <ChevronRightIcon className="w-4 h-4 text-gray-200 group-hover:text-blue-400 transition-colors" />
+                                                <span className="text-sm font-black text-sky-600">{(overviewData.billStatusCounts.unpaid || 0) + (overviewData.billStatusCounts.waiting_verify || 0)} ห้อง</span>
+                                                <ChevronRightIcon className="w-4 h-4 text-gray-200 group-hover:text-sky-400 transition-colors" />
                                             </div>
                                         </div>
                                         <div
@@ -1753,28 +1961,28 @@ export default function DashboardClient() {
                                         >
                                             <div className="flex items-center gap-3">
                                                 <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
-                                                    <BellIcon className="w-4 h-4" />
+                                                    <ExclamationTriangleIcon className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-sm font-bold text-gray-700 group-hover:text-orange-600 transition-colors">ยังไม่จ่าย</span>
+                                                <span className="text-sm font-bold text-gray-700 group-hover:text-orange-600 transition-colors">ค้างชำระ</span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-sm font-black text-orange-600">{overviewData.billStatusCounts.unpaid} ห้อง</span>
+                                                <span className="text-sm font-black text-orange-600">{(overviewData.billStatusCounts as any).overdue || 0} ห้อง</span>
                                                 <ChevronRightIcon className="w-4 h-4 text-gray-200 group-hover:text-orange-400 transition-colors" />
                                             </div>
                                         </div>
                                         <div
-                                            onClick={() => router.push('/dashboard/billing')}
+                                            onClick={() => { setActiveTab('rooms'); setSelectedStatus('moving_out'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                                             className="p-3.5 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors group"
                                         >
                                             <div className="flex items-center gap-3">
-                                                <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-600">
-                                                    <ExclamationTriangleIcon className="w-4 h-4" />
+                                                <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                                                    <ArrowRightOnRectangleIcon className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-sm font-bold text-gray-700 group-hover:text-red-600 transition-colors">เกินกำหนด</span>
+                                                <span className="text-sm font-bold text-gray-700 group-hover:text-amber-600 transition-colors">แจ้งออก</span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-sm font-black text-red-600">{(overviewData.billStatusCounts as any).overdue || 0} ห้อง</span>
-                                                <ChevronRightIcon className="w-4 h-4 text-gray-200 group-hover:text-red-400 transition-colors" />
+                                                <span className="text-sm font-black text-amber-600">{(overviewData.billStatusCounts as any).movingOut || 0} ห้อง</span>
+                                                <ChevronRightIcon className="w-4 h-4 text-gray-200 group-hover:text-amber-400 transition-colors" />
                                             </div>
                                         </div>
                                     </div>
@@ -1802,7 +2010,7 @@ export default function DashboardClient() {
                                 {/* Floor Filter */}
                                 <div className="flex flex-col gap-2">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">เลือกชั้น</p>
-                                    <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                    <div className="flex items-center gap-2 flex-wrap pb-2">
                                         <button
                                             onClick={() => setSelectedFloor('all')}
                                             className={`px-5 py-2.5 rounded-2xl font-black text-xs transition-all whitespace-nowrap border-2 ${selectedFloor === 'all' ? 'bg-green-600 border-green-600 text-white shadow-lg shadow-green-100' : 'bg-white border-gray-100 text-gray-400 hover:border-green-200'}`}
@@ -1824,18 +2032,19 @@ export default function DashboardClient() {
                                 {/* Status Filter */}
                                 <div className="flex flex-col gap-2">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">สถานะห้อง</p>
-                                    <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                    <div className="flex items-center gap-2 flex-wrap pb-2">
                                         {[
-                                            { id: 'all', label: 'ทั้งหมด' },
-                                            { id: 'available', label: 'ว่าง' },
-                                            { id: 'occupied', label: 'มีคนพัก' },
-                                            { id: 'waiting_verify', label: 'รอตรวจสลิป' },
-                                            { id: 'unpaid', label: 'ค้างชำระ' }
+                                            { id: 'all', label: 'ทั้งหมด', color: 'bg-emerald-600 border-emerald-600 shadow-emerald-100' },
+                                            { id: 'available', label: 'ว่าง', color: 'bg-green-500 border-green-500 shadow-green-100' },
+                                            { id: 'occupied', label: 'มีคนพัก', color: 'bg-blue-600 border-blue-600 shadow-blue-100' },
+                                            { id: 'waiting', label: 'รอชำระ', color: 'bg-sky-500 border-sky-500 shadow-sky-100' },
+                                            { id: 'overdue', label: 'ค้างชำระ', color: 'bg-orange-500 border-orange-500 shadow-orange-100' },
+                                            { id: 'moving_out', label: 'แจ้งออก', color: 'bg-amber-500 border-amber-500 shadow-amber-100' }
                                         ].map(status => (
                                             <button
                                                 key={status.id}
                                                 onClick={() => setSelectedStatus(status.id)}
-                                                className={`px-5 py-2.5 rounded-2xl font-black text-xs transition-all whitespace-nowrap border-2 ${selectedStatus === status.id ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-white border-gray-100 text-gray-400 hover:border-blue-200'}`}
+                                                className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all whitespace-nowrap border-2 ${selectedStatus === status.id ? `${status.color} text-white shadow-lg` : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'}`}
                                             >
                                                 {status.label}
                                             </button>
@@ -1860,10 +2069,11 @@ export default function DashboardClient() {
                                     const isOccupied = room.status === 'occupied';
                                     const isAvailable = room.status === 'available';
 
-                                    if (selectedStatus === 'available') matchesStatus = isAvailable && !isWaitingVerify && !isUnpaid;
+                                    if (selectedStatus === 'available') matchesStatus = isAvailable && !isWaitingVerify && !isUnpaid && !overdueRoomIds.has(room.id);
                                     if (selectedStatus === 'occupied') matchesStatus = isOccupied;
-                                    if (selectedStatus === 'waiting_verify') matchesStatus = isWaitingVerify;
-                                    if (selectedStatus === 'unpaid') matchesStatus = isUnpaid;
+                                    if (selectedStatus === 'waiting') matchesStatus = isUnpaid || isWaitingVerify;
+                                    if (selectedStatus === 'overdue') matchesStatus = overdueRoomIds.has(room.id);
+                                    if (selectedStatus === 'moving_out') matchesStatus = movingOutRoomIds.has(room.id);
                                 }
 
                                 return matchesFloor && matchesStatus;
@@ -1897,6 +2107,7 @@ export default function DashboardClient() {
                                                     const isWaitingVerify = waitingVerifyRoomIds.has(room.id);
                                                     const isUnpaid = unpaidRoomIds.has(room.id);
                                                     const isOccupied = room.status === 'occupied';
+                                                    const isMovingOut = movingOutRoomIds.has(room.id);
 
                                                     // Color & Info Logic
                                                     let theme = {
@@ -1906,28 +2117,29 @@ export default function DashboardClient() {
                                                         badge: 'bg-green-500 text-white',
                                                         status: 'ว่าง',
                                                         icon: KeyIcon,
-                                                        shadow: 'shadow-gray-100'
+                                                        shadow: 'shadow-green-50'
                                                     };
 
-                                                    if (isWaitingVerify) {
+                                                    if (isMovingOut) {
                                                         theme = {
                                                             bg: 'bg-white',
-                                                            border: 'border-blue-100',
-                                                            iconBg: 'bg-blue-50 text-blue-600',
-                                                            badge: 'bg-blue-500 text-white',
-                                                            status: 'รอตรวจสอบ',
-                                                            icon: ClockIcon,
-                                                            shadow: 'shadow-blue-50'
+                                                            border: 'border-amber-100',
+                                                            iconBg: 'bg-amber-50 text-amber-600',
+                                                            badge: 'bg-amber-500 text-white',
+                                                            status: 'แจ้งออก',
+                                                            icon: ArrowRightOnRectangleIcon,
+                                                            shadow: 'shadow-amber-50'
                                                         };
-                                                    } else if (isUnpaid) {
+                                                    } else if (isWaitingVerify || isUnpaid) {
+                                                        const isReallyOverdue = overdueRoomIds.has(room.id);
                                                         theme = {
                                                             bg: 'bg-white',
-                                                            border: 'border-red-100',
-                                                            iconBg: 'bg-orange-50 text-orange-600',
-                                                            badge: 'bg-orange-500 text-white',
-                                                            status: 'ค้างชำระ',
-                                                            icon: BellIcon,
-                                                            shadow: 'shadow-orange-50'
+                                                            border: isReallyOverdue ? 'border-orange-100' : 'border-sky-100',
+                                                            iconBg: isReallyOverdue ? 'bg-orange-50 text-orange-600' : 'bg-sky-50 text-sky-600',
+                                                            badge: isReallyOverdue ? 'bg-orange-500 text-white' : 'bg-sky-500 text-white',
+                                                            status: isReallyOverdue ? 'ค้างชำระ' : 'รอชำระ',
+                                                            icon: isReallyOverdue ? ExclamationTriangleIcon : (isWaitingVerify ? ClockIcon : BellIcon),
+                                                            shadow: isReallyOverdue ? 'shadow-orange-50' : 'shadow-sky-50'
                                                         };
                                                     } else if (isOccupied) {
                                                         theme = {
@@ -2001,6 +2213,14 @@ export default function DashboardClient() {
                                                                                     )}
                                                                                     <span className={`text-[11px] font-bold tracking-tighter ${activeTenant.line_user_id ? 'text-green-700' : 'text-gray-500'}`}>
                                                                                         {activeTenant.phone}
+                                                                                    </span>
+                                                                                </div>
+                                                                            )}
+                                                                            {activeTenant.planned_move_out_date && (
+                                                                                <div className="flex items-center gap-2 mt-1 px-2 py-1 bg-amber-50 rounded-lg border border-amber-100/50 w-fit">
+                                                                                    <ClockIcon className="w-3 h-3 text-amber-600" />
+                                                                                    <span className="text-[10px] font-black text-amber-700 uppercase tracking-tight">
+                                                                                        ออก: {formatThaiDate(activeTenant.planned_move_out_date)}
                                                                                     </span>
                                                                                 </div>
                                                                             )}

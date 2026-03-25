@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import { format, subMonths, addMonths, startOfMonth } from 'date-fns'
-import { 
-    ChevronLeftIcon, 
-    ChevronRightIcon, 
+import {
+    ChevronLeftIcon,
+    ChevronRightIcon,
     MagnifyingGlassIcon,
     ClockIcon,
     CheckCircleIcon,
@@ -54,7 +54,7 @@ export default function HistoryClient() {
     async function fetchHistory() {
         setLoading(true)
         const supabase = createClient()
-        
+
         try {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
@@ -73,7 +73,7 @@ export default function HistoryClient() {
 
             // 2. Get Bills for selected month
             const monthStr = format(selectedDate, 'yyyy-MM-01')
-            
+
             const { data: billsData, error } = await supabase
                 .from('bills')
                 .select(`
@@ -122,14 +122,14 @@ export default function HistoryClient() {
         try {
             // If it's paid, revert to unpaid instead of cancelling
             const newStatus = billToCancel.status === 'paid' ? 'unpaid' : 'cancelled'
-            
+
             const { error } = await supabase
                 .from('bills')
                 .update({ status: newStatus })
                 .eq('id', billToCancel.id)
 
             if (error) throw error
-            
+
             // Refresh data
             await fetchHistory()
             setShowCancelModal(false)
@@ -143,8 +143,8 @@ export default function HistoryClient() {
     }
 
     const filteredBills = bills.filter(bill => {
-        const matchesSearch = bill.room_number.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                             bill.tenant_name.toLowerCase().includes(searchQuery.toLowerCase())
+        const matchesSearch = bill.room_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            bill.tenant_name.toLowerCase().includes(searchQuery.toLowerCase())
         const matchesStatus = statusFilter === 'all' || bill.status === statusFilter
         return matchesSearch && matchesStatus
     })
@@ -167,11 +167,11 @@ export default function HistoryClient() {
     return (
         <div className="min-h-screen bg-gray-50 sm:flex sm:items-center sm:justify-center sm:py-8 font-sans text-gray-800">
             <div className="w-full sm:max-w-md bg-white h-screen sm:h-[850px] shadow-2xl flex flex-col relative overflow-hidden sm:rounded-[2.5rem] border border-gray-100">
-                
+
                 {/* ── HEADER ── */}
                 <header className="px-6 pt-10 pb-6 bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-gray-50">
                     <div className="flex items-center justify-between mb-6">
-                        <button 
+                        <button
                             onClick={() => router.push('/dashboard')}
                             className="w-11 h-11 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-600 active:scale-95 transition-all"
                         >
@@ -181,7 +181,7 @@ export default function HistoryClient() {
                             <h1 className="text-xl font-black text-gray-800 tracking-tight">ประวัติบิล</h1>
                             <p className="text-[10px] font-bold text-purple-500 uppercase tracking-widest leading-none mt-1">{dormName}</p>
                         </div>
-                        <button 
+                        <button
                             onClick={fetchHistory}
                             className="w-11 h-11 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 hover:bg-purple-100 active:scale-95 transition-all"
                         >
@@ -191,7 +191,7 @@ export default function HistoryClient() {
 
                     {/* Month Selector */}
                     <div className="flex items-center justify-between bg-purple-50 rounded-[1.5rem] p-4 mb-6 shadow-inner ring-1 ring-purple-100/50">
-                        <button 
+                        <button
                             onClick={() => setSelectedDate(subMonths(selectedDate, 1))}
                             className="w-10 h-10 flex items-center justify-center text-purple-600 hover:bg-white rounded-xl transition-all shadow-sm active:scale-90"
                         >
@@ -203,7 +203,7 @@ export default function HistoryClient() {
                                 {thaiMonths[selectedDate.getMonth()]} {selectedDate.getFullYear() + 543}
                             </p>
                         </div>
-                        <button 
+                        <button
                             onClick={() => setSelectedDate(addMonths(selectedDate, 1))}
                             className="w-10 h-10 flex items-center justify-center text-purple-600 hover:bg-white rounded-xl transition-all shadow-sm active:scale-90"
                         >
@@ -215,7 +215,7 @@ export default function HistoryClient() {
                     <div className="space-y-4">
                         <div className="relative group">
                             <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 group-focus-within:text-purple-500 transition-colors" />
-                            <input 
+                            <input
                                 type="text"
                                 placeholder="ค้นหาเลขห้อง หรือชื่อผู้เช่า..."
                                 value={searchQuery}
@@ -230,18 +230,17 @@ export default function HistoryClient() {
                                 let label = 'ทั้งหมด'
                                 if (status === 'paid') label = 'ชำระแล้ว'
                                 if (status === 'unpaid') label = 'ยังไม่จ่าย'
-                                if (status === 'waiting_verify') label = 'รอตรวจ'
+                                if (status === 'waiting_verify') label = 'รอชำระ'
                                 if (status === 'cancelled') label = 'ยกเลิก'
 
                                 return (
                                     <button
                                         key={status}
                                         onClick={() => setStatusFilter(status)}
-                                        className={`px-4 py-2 rounded-xl text-[11px] font-black whitespace-nowrap transition-all border ${
-                                            active 
-                                            ? 'bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-100' 
-                                            : 'bg-white text-gray-400 border-gray-100 hover:border-purple-200 hover:text-purple-400'
-                                        }`}
+                                        className={`px-4 py-2 rounded-xl text-[11px] font-black whitespace-nowrap transition-all border ${active
+                                                ? 'bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-100'
+                                                : 'bg-white text-gray-400 border-gray-100 hover:border-purple-200 hover:text-purple-400'
+                                            }`}
                                     >
                                         {label}
                                     </button>
@@ -264,7 +263,7 @@ export default function HistoryClient() {
                             </div>
                             <h3 className="text-lg font-black text-gray-400 mb-2">ไม่พบรายการบิล</h3>
                             <p className="text-xs font-bold text-gray-300 leading-relaxed">
-                                ไม่พบข้อมูลบิลที่ตรงตามเงื่อนไขในรอบเดือนนี้ <br/>
+                                ไม่พบข้อมูลบิลที่ตรงตามเงื่อนไขในรอบเดือนนี้ <br />
                                 โปรดลองเปลี่ยนเดือนหรือคำค้นหาครับ
                             </p>
                         </div>
@@ -274,7 +273,7 @@ export default function HistoryClient() {
                             const Icon = style.icon
 
                             return (
-                                <div 
+                                <div
                                     key={bill.id}
                                     className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-all active:scale-[0.98] group"
                                 >
@@ -314,7 +313,7 @@ export default function HistoryClient() {
                                             <p className="text-[11px] font-black text-gray-600">฿{bill.other_amount.toLocaleString()}</p>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="mt-4 flex items-center justify-between gap-3">
                                         <p className="text-[9px] font-bold text-gray-400">
                                             บันทึกเมื่อ: {format(new Date(bill.created_at), 'dd/MM/yyyy HH:mm')}
@@ -332,7 +331,7 @@ export default function HistoryClient() {
                                                     {bill.status === 'paid' ? 'ยกเลิกยืนยันจ่าย' : 'ยกเลิกบิล'}
                                                 </button>
                                             )}
-                                            <button 
+                                            <button
                                                 onClick={() => router.push(`/dashboard/billing/receipt/${bill.id}`)}
                                                 className={`text-[10px] font-black underline underline-offset-4 decoration-2 ${bill.status === 'cancelled' ? 'text-gray-400 hover:text-gray-600' : 'text-purple-500 hover:text-purple-700'}`}
                                             >
@@ -349,7 +348,7 @@ export default function HistoryClient() {
                 {/* ── CANCEL/REVERT MODAL ── */}
                 {showCancelModal && billToCancel && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-0">
-                        <div 
+                        <div
                             className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
                             onClick={() => {
                                 setShowCancelModal(false)
@@ -365,7 +364,7 @@ export default function HistoryClient() {
                                     {billToCancel.status === 'paid' ? 'ยกเลิกยืนยันจ่าย?' : `ยกเลิกบิลห้อง ${billToCancel.room_number}?`}
                                 </h2>
                                 <p className="text-gray-400 text-xs font-bold mt-2 px-6">
-                                    {billToCancel.status === 'paid' 
+                                    {billToCancel.status === 'paid'
                                         ? `คุณต้องการยกเลิกการยืนยันรับเงินของห้อง ${billToCancel.room_number} ใช่หรือไม่? สถานะจะกลับเป็น 'ยังไม่จ่าย'`
                                         : `บิลใบนี้จะถูกยกเลิก และเปลี่ยนสถานะเป็น "ยกเลิกแล้ว" คุณยังสามารถออกบิลใหม่ของรอบเดือนนี้ได้ทันทีครับ`
                                     }

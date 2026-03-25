@@ -22,6 +22,7 @@ interface Tenant {
     status: string;
     created_at: string;
     room_id: string;
+    tenant_contract_id?: string | null;
     rooms: {
         room_number: string;
         floor: string;
@@ -42,7 +43,7 @@ export default function MoveOutClient() {
     const [showNoticeModal, setShowNoticeModal] = useState(false)
     const [noticeDate, setNoticeDate] = useState('')
     const [isSubmittingNotice, setIsSubmittingNotice] = useState(false)
-    
+
     // Debt Check States
     const [pendingBills, setPendingBills] = useState<any[]>([])
     const [showDebtWarning, setShowDebtWarning] = useState(false)
@@ -123,7 +124,7 @@ export default function MoveOutClient() {
             // 1. Update Tenant status to 'moved_out'
             const { error: tError } = await supabase
                 .from('tenants')
-                .update({ 
+                .update({
                     status: 'moved_out',
                     moved_out_at: new Date().toISOString()
                 })
@@ -148,6 +149,15 @@ export default function MoveOutClient() {
                 .eq('status', 'active')
             if (lError) throw lError
 
+            // 4. Update Tenant Contract to 'expired'
+            if (selectedTenant.tenant_contract_id) {
+                const { error: tcError } = await supabase
+                    .from('tenant_contracts')
+                    .update({ status: 'expired' })
+                    .eq('id', selectedTenant.tenant_contract_id)
+                if (tcError) throw tcError
+            }
+
             setShowMoveOutModal(false)
             setShowDebtWarning(false)
             setPendingBills([])
@@ -157,6 +167,30 @@ export default function MoveOutClient() {
             setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการบันทึก')
         } finally {
             setIsMovingOut(false)
+        }
+    }
+
+    const handleCancelNotice = async () => {
+        if (!selectedTenant || isSubmittingNotice) return
+        setIsSubmittingNotice(true)
+        const supabase = createClient()
+
+        try {
+            const { error } = await supabase
+                .from('tenants')
+                .update({ planned_move_out_date: null })
+                .eq('id', selectedTenant.id)
+
+            if (error) throw error
+
+            setShowNoticeModal(false)
+            setNoticeDate('')
+            setSelectedTenant(null)
+            fetchData()
+        } catch (err: any) {
+            setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการยกเลิก')
+        } finally {
+            setIsSubmittingNotice(false)
         }
     }
 
@@ -225,14 +259,14 @@ export default function MoveOutClient() {
                         {/* Search */}
                         <div className="relative group">
                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <MagnifyingGlassIcon className={`h-5 w-5 transition-colors duration-300 ${searchQuery ? 'text-red-500' : 'text-gray-400'}`} />
+                                <MagnifyingGlassIcon className={`h-5 w-5 transition-colors duration-300 ${searchQuery ? 'text-emerald-500' : 'text-gray-400'}`} />
                             </div>
                             <input
                                 type="text"
                                 placeholder="พิมพ์เลขห้อง หรือชื่อผู้เช่า..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="block w-full pl-12 pr-12 py-4 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-red-500 rounded-2xl transition-all font-bold text-base outline-none shadow-sm hover:bg-gray-100/50"
+                                className="block w-full pl-12 pr-12 py-4 bg-gray-50 border-2 border-transparent focus:bg-white focus:border-emerald-500 rounded-2xl transition-all font-bold text-base outline-none shadow-sm hover:bg-gray-100/50"
                             />
                             {searchQuery && (
                                 <button onClick={() => setSearchQuery('')} className="absolute inset-y-0 right-0 pr-4 flex items-center">
@@ -261,7 +295,7 @@ export default function MoveOutClient() {
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
-                                        <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border shadow-sm transition-colors ${tenant.planned_move_out_date ? 'bg-amber-100 border-amber-200 text-amber-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                                        <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border shadow-sm transition-colors ${tenant.planned_move_out_date ? 'bg-amber-100 border-amber-200 text-amber-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
                                             <span className="text-[10px] font-bold uppercase leading-none mb-1">ห้อง</span>
                                             <span className="text-xl font-black leading-none">{tenant.rooms.room_number}</span>
                                         </div>
@@ -271,11 +305,11 @@ export default function MoveOutClient() {
                                                 <div className="flex items-center gap-1.5 text-amber-600 bg-amber-100/50 px-2 py-0.5 rounded-full w-fit">
                                                     <ClockIcon className="w-3 h-3" />
                                                     <span className="text-[10px] font-black uppercase tracking-wide">
-                                                        รอย้ายออก: {new Date(tenant.planned_move_out_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                                                        แจ้งออก: {new Date(tenant.planned_move_out_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
                                                     </span>
                                                 </div>
                                             ) : (
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">สถานะ: กำลังพัก</span>
+                                                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">สถานะ: กำลังพัก</span>
                                             )}
                                         </div>
                                     </div>
@@ -343,7 +377,16 @@ export default function MoveOutClient() {
                                     <button onClick={handleSetNotice} disabled={isSubmittingNotice} className="w-full h-14 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl shadow-lg shadow-amber-100 transition-all active:scale-95">
                                         {isSubmittingNotice ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
                                     </button>
-                                    <button onClick={() => setShowNoticeModal(false)} className="w-full h-14 bg-gray-100 text-gray-400 font-black rounded-2xl">ยกเลิก</button>
+                                    {selectedTenant.planned_move_out_date && (
+                                        <button 
+                                            onClick={handleCancelNotice} 
+                                            disabled={isSubmittingNotice}
+                                            className="w-full h-14 bg-red-50 hover:bg-red-100 text-red-600 font-black rounded-2xl transition-all active:scale-95 border border-red-100"
+                                        >
+                                            {isSubmittingNotice ? 'กำลังประมวลผล...' : 'ยกเลิกการแจ้งออก'}
+                                        </button>
+                                    )}
+                                    <button onClick={() => setShowNoticeModal(false)} className="w-full h-14 bg-gray-100 text-gray-400 font-black rounded-2xl">กลับ</button>
                                 </div>
                             </div>
                         </div>
@@ -361,13 +404,13 @@ export default function MoveOutClient() {
                                 </div>
                                 <h3 className="text-2xl font-black text-gray-800 tracking-tight">ยืนยันการย้ายออก?</h3>
                                 <p className="text-gray-400 text-sm font-bold leading-relaxed px-4">
-                                    คุณต้องการบันทึกการย้ายออกของ <span className="text-gray-800">{selectedTenant.name}</span> ใช่หรือไม่? <br/>(ห้องจะกลายเป็นห้องว่างทันที)
+                                    คุณต้องการบันทึกการย้ายออกของ <span className="text-gray-800">{selectedTenant.name}</span> ใช่หรือไม่? <br />(ห้องจะกลายเป็นห้องว่างทันที)
                                 </p>
                             </div>
                             <div className="p-8 bg-gray-50 flex flex-col gap-3">
-                                <button 
-                                    onClick={handleMoveOut} 
-                                    disabled={isMovingOut} 
+                                <button
+                                    onClick={handleMoveOut}
+                                    disabled={isMovingOut}
                                     className="w-full h-14 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl shadow-lg shadow-red-100 transition-all active:scale-95 flex items-center justify-center gap-2"
                                 >
                                     {isMovingOut && <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
@@ -391,12 +434,12 @@ export default function MoveOutClient() {
                                 <h3 className="text-2xl font-black text-gray-800 tracking-tight">พบหนี้ค้างชำระ!</h3>
                                 <p className="text-red-600/60 text-[10px] font-black mt-1 uppercase tracking-widest">Outstanding Debt Detected</p>
                             </div>
-                            
+
                             <div className="px-8 py-6 space-y-4 max-h-[300px] overflow-y-auto no-scrollbar">
                                 <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 italic text-[11px] text-gray-400 font-medium text-center">
                                     ผู้เช่า <span className="font-black text-gray-600">{selectedTenant.name}</span> ยังมีบิลที่ยังไม่ได้ชำระดังนี้:
                                 </div>
-                                
+
                                 {pendingBills.map(bill => (
                                     <div key={bill.id} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl shadow-sm">
                                         <div>
@@ -421,13 +464,13 @@ export default function MoveOutClient() {
                             </div>
 
                             <div className="p-8 space-y-3 bg-gray-50">
-                                <button 
+                                <button
                                     onClick={() => router.push(`/dashboard/billing?room=${selectedTenant.rooms.room_number}`)}
                                     className="w-full h-14 bg-gray-800 hover:bg-black text-white font-black rounded-2xl shadow-lg shadow-gray-200 transition-all active:scale-95"
                                 >
                                     ไปจุดชำระเงิน
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => {
                                         setShowDebtWarning(false)
                                         setShowMoveOutModal(true)
@@ -436,7 +479,7 @@ export default function MoveOutClient() {
                                 >
                                     ยืนยันย้ายออกทั้งที่มีหนี้
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => setShowDebtWarning(false)}
                                     className="w-full py-2 text-gray-400 font-bold text-xs"
                                 >

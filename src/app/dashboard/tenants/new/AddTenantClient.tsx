@@ -251,7 +251,8 @@ export default function AddTenantClient() {
                 p_start_date: startDate,
                 p_end_date: finalEndDate,
                 p_occupation: occupation.trim() || null,
-                p_address: address.trim() || null
+                p_address: address.trim() || null,
+                p_contract_id: fromContractId || null
             })
 
             if (error) {

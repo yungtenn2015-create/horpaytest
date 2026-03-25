@@ -167,7 +167,8 @@ export default function BillingClient() {
                     
                     // Match utils and bill strictly to the active tenant to avoid inheriting old data
                     const utils = utilsData?.find(u => u.room_id === room.id && u.tenant_id === activeTenant?.id)
-                    const bill = billsData?.find(b => b.room_id === room.id && b.tenant_id === activeTenant?.id)
+                    // BROAD FIX: Check if ANY non-cancelled bill exists for this room/month to prevent duplicate DB errors
+                    const bill = billsData?.find(b => b.room_id === room.id)
                     const contract = contractsData?.find(c => c.tenant_id === activeTenant?.id)
 
                     const isVacant = room.status === 'available' || !activeTenant
@@ -337,7 +338,7 @@ export default function BillingClient() {
 
             if (billError) {
                 if (billError.code === '23505') {
-                    throw new Error('ไม่สามารถออกบิลซ้ำได้: ผู้เช่าคนนี้มีบิลในห้องนี้/เดือนนี้อยู่แล้ว หากต้องการออกใหม่กรุณาลบบิลเดิมออกก่อน')
+                    throw new Error('ไม่สามารถออกบิลซ้ำได้: มีบิลในห้องนี้/เดือนนี้อยู่แล้ว (อาจเป็นของผู้เช่าคนเก่า หรือออกไปแล้วแต่ยังไม่ได้ยกเลิก) หากต้องการออกใหม่ กรุณาลบบิลเดิมออกก่อน')
                 }
                 throw billError
             }
@@ -846,7 +847,7 @@ export default function BillingClient() {
                                                         <div className="flex gap-2">
                                                             {noMeters ? (
                                                                 <button
-                                                                    onClick={() => router.push(`/dashboard/meter?month=${format(selectedDate, 'yyyy-MM')}`)}
+                                                                    onClick={() => router.push(`/dashboard/meter?month=${format(selectedDate, 'yyyy-MM')}&roomId=${item.roomId}`)}
                                                                     className="flex-1 h-10 bg-orange-500 text-white rounded-xl font-black text-[12px] flex items-center justify-center gap-2"
                                                                 >
                                                                     <Squares2X2Icon className="w-4 h-4" /> ไปจดมิเตอร์
