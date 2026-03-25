@@ -17,7 +17,8 @@ import {
     Squares2X2Icon,
     ChatBubbleLeftRightIcon,
     XMarkIcon,
-    EyeIcon
+    EyeIcon,
+    ClockIcon
 } from '@heroicons/react/24/outline'
 import ReceiptView from '@/src/components/ReceiptView'
 
@@ -164,7 +165,7 @@ export default function BillingClient() {
                 const mappedBilling = roomsData.map(room => {
                     // CRITICAL FIX: Only find the ACTIVE tenant for this room
                     const activeTenant = (room.tenants as any[])?.find((t: any) => t.status === 'active')
-                    
+
                     // Match utils and bill strictly to the active tenant to avoid inheriting old data
                     const utils = utilsData?.find(u => u.room_id === room.id && u.tenant_id === activeTenant?.id)
                     // BROAD FIX: Check if ANY non-cancelled bill exists for this room/month to prevent duplicate DB errors
@@ -175,12 +176,16 @@ export default function BillingClient() {
                     const hasMeters = !!utils
                     const isIssued = !!bill
 
-                    let status: 'vacant' | 'pending_meter' | 'ready' | 'issued' | 'waiting_verify' | 'paid' = 'vacant'
+                    const waterBillingType = settingsData?.water_billing_type || 'per_unit'
+                    const isWaterOk = waterBillingType === 'flat_rate' || (utils?.water_unit > 0)
+                    const isElectricOk = (utils?.electric_unit > 0)
+                    const isReady = !!utils && isWaterOk && isElectricOk
+
                     if (isVacant) status = 'vacant'
                     else if (bill?.status === 'paid') status = 'paid'
                     else if (bill?.status === 'waiting_verify') status = 'waiting_verify'
                     else if (isIssued) status = 'issued'
-                    else if (!hasMeters) status = 'pending_meter'
+                    else if (!isReady) status = 'pending_meter'
                     else status = 'ready'
 
                     // CRITICAL FIX: If bill exists, use it as the source of truth for amounts
@@ -204,7 +209,8 @@ export default function BillingClient() {
                         utilityId: utils?.id,
                         billId: bill?.id,
                         billStatus: bill?.status || 'unpaid',
-                        hasMeters,
+                        hasMeters: isReady, // Use isReady here
+                        waterBillingType,
                         floor: room.floor || Math.floor(parseInt(room.room_number) / 100) || 1,
                         status
                     }
@@ -311,6 +317,16 @@ export default function BillingClient() {
 
     const handleIssueBill = async (item: any) => {
         if (issuing) return
+
+        // Add Safety Check for 0 Units (Thai warning)
+        const isWaterZero = item.waterBillingType !== 'flat_rate' && item.waterUnit === 0
+        const isElecZero = item.electricityUnit === 0
+
+        if (isWaterZero || isElecZero) {
+            const msg = `ห้อง ${item.roomNumber} มีการใช้${isWaterZero && isElecZero ? 'น้ำและไฟ' : isWaterZero ? 'น้ำ' : 'ไฟ'}เป็น 0 หน่วย\n\nยืนยันจะออกบิลใช่หรือไม่?`;
+            if (!window.confirm(msg)) return;
+        }
+
         setIssuing(item.roomId)
         const supabase = createClient()
 
@@ -549,12 +565,21 @@ export default function BillingClient() {
                             <ChevronLeftIcon className="w-6 h-6 stroke-[2.5]" />
                         </button>
                         <h1 className="text-xl font-black text-gray-800 tracking-tight">สรุปยอดบิลค่าเช่า</h1>
-                        <button
-                            onClick={() => fetchData()}
-                            className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 hover:bg-emerald-100 active:scale-95 transition-all"
-                        >
-                            <ArrowPathIcon className={`w-5 h-5 stroke-[2.5] ${loading ? 'animate-spin' : ''}`} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => router.push('/dashboard/history')}
+                                className="h-10 px-3 rounded-xl bg-purple-50 flex items-center justify-center gap-1.5 text-purple-600 hover:bg-purple-100 active:scale-95 transition-all shadow-sm border border-purple-100"
+                            >
+                                <ClockIcon className="w-4 h-4 stroke-[2.5]" />
+                                <span className="text-[10px] font-black uppercase tracking-tight">ประวัติบิล</span>
+                            </button>
+                            <button
+                                onClick={() => fetchData()}
+                                className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 hover:bg-emerald-100 active:scale-95 transition-all shadow-sm"
+                            >
+                                <ArrowPathIcon className={`w-5 h-5 stroke-[2.5] ${loading ? 'animate-spin' : ''}`} />
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex items-center justify-between bg-emerald-50 rounded-2xl p-4">

@@ -9,7 +9,8 @@ import {
     BoltIcon,
     CalendarDaysIcon,
     ChevronLeftIcon,
-    ChevronRightIcon
+    ChevronRightIcon,
+    BanknotesIcon
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon } from '@heroicons/react/24/solid'
 
@@ -296,28 +297,46 @@ export default function MeterClient() {
                 const pElecNum = parseInt(p.electric || '0')
                 const pWaterNum = parseInt(p.water || '0')
 
-                const currWaterVal = (utilityFilter === 'all' || utilityFilter === 'water') ? parseInt(inf.currWater) : pWaterNum
-                const currElecVal = (utilityFilter === 'all' || utilityFilter === 'electric') ? parseInt(inf.currElectric) : pElecNum
+                // ONLY update if it's in the current filter OR it was already entered/exists in the field
+                const hasInputElectric = inf.currElectric !== ''
+                const hasInputWater = inf.currWater !== ''
 
-                const currentElectricPrice = (currElecVal - pElecNum) * electricRate
-                const currentWaterPrice = waterBillingType === 'flat_rate' ? waterFlatRate : (currWaterVal - pWaterNum) * waterRate
+                const shouldUpdateElectric = (utilityFilter === 'all' || utilityFilter === 'electric') && hasInputElectric
+                const shouldUpdateWater = (utilityFilter === 'all' || utilityFilter === 'water') && hasInputWater
+
+                // If we shouldn't update, we use the EXISTING value (if any) or null?
+                // Actually, if we use upsert, we MUST provide the primary keys.
+                // To avoid 'auto-filling' with prev values when not intended, we check if there's an actual change.
+
+                const currElecVal = hasInputElectric ? parseInt(inf.currElectric) : pElecNum
+                const currWaterVal = hasInputWater ? parseInt(inf.currWater) : pWaterNum
+
+                // If both are null and we are upserting, it might be an empty record.
+                // But isSaveDisabled ensures at least the filtered ones are NOT empty.
+
+                const electric_unit = currElecVal !== null ? currElecVal - pElecNum : 0
+                const water_unit = currWaterVal !== null ? currWaterVal - pWaterNum : 0
+
+                const currentElectricPrice = electric_unit * electricRate
+                const currentWaterPrice = waterBillingType === 'flat_rate' ? waterFlatRate : (water_unit * waterRate)
 
                 const activeTenant = (r as any).tenants?.find((t: any) => t.status === 'active')
 
                 return {
                     room_id: r.id,
-                    tenant_id: activeTenant?.id, // CRITICAL FIX: Save tenant id to utility record
+                    tenant_id: activeTenant?.id,
                     meter_date: `${selectedMonth}-01`,
                     prev_electric_meter: pElecNum,
                     curr_electric_meter: currElecVal,
-                    electric_unit: currElecVal - pElecNum,
+                    electric_unit: electric_unit,
                     electric_price: currentElectricPrice,
                     prev_water_meter: pWaterNum,
                     curr_water_meter: currWaterVal,
-                    water_unit: currWaterVal - pWaterNum,
+                    water_unit: water_unit,
                     water_price: currentWaterPrice
                 }
             })
+            .filter(item => item.curr_electric_meter !== null || item.curr_water_meter !== null)
 
         if (toSave.length === 0) {
             setErrorMsg('ไม่มีข้อมูลใหม่ให้บันทึก (ห้องที่ออกบิลแล้วไม่สามารถแก้ไขมิเตอร์ได้)')
@@ -383,10 +402,10 @@ export default function MeterClient() {
 
                             <button
                                 onClick={() => router.push(`/dashboard/billing?month=${selectedMonth}`)}
-                                className="px-4 py-2.5 bg-white text-emerald-600 rounded-2xl flex items-center gap-2 text-[13px] font-black shadow-lg shadow-emerald-900/10 active:scale-95 transition-all hover:bg-emerald-50"
+                                className="h-10 px-3 rounded-xl bg-emerald-50 flex items-center justify-center gap-1.5 text-emerald-600 hover:bg-emerald-100 active:scale-95 transition-all shadow-sm border border-emerald-100"
                             >
-                                <span className="material-symbols-outlined text-[20px]">receipt_long</span>
-                                ออกบิลเลย
+                                <BanknotesIcon className="w-4 h-4 stroke-[2.5]" />
+                                <span className="text-[10px] font-black uppercase tracking-tight">ออกบิล</span>
                             </button>
                         </div>
 

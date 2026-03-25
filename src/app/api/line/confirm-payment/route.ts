@@ -30,11 +30,11 @@ export async function POST(req: Request) {
     }
 
     if (!bill.tenants?.line_user_id) {
-       return NextResponse.json({ error: 'Tenant has no LINE linked' }, { status: 400 });
+      return NextResponse.json({ error: 'Tenant has no LINE linked' }, { status: 400 });
     }
 
     // 2. Fetch Dorm & LINE Config
-    const [ { data: dorm }, { data: dormConfig } ] = await Promise.all([
+    const [{ data: dorm }, { data: dormConfig }] = await Promise.all([
       supabaseAdmin.from('dorms').select('name').eq('id', bill.rooms.dorm_id).single(),
       supabaseAdmin.from('line_oa_configs').select('*').eq('dorm_id', bill.rooms.dorm_id).maybeSingle()
     ]);
@@ -63,11 +63,11 @@ export async function POST(req: Request) {
 
     // 5. Log notification
     await supabaseAdmin.from('line_notification_logs').insert({
-        dorm_id: bill.rooms.dorm_id,
-        receiver_id: bill.tenants.line_user_id,
-        message_type: 'flex',
-        status: response.ok ? 'sent' : 'failed',
-        error_message: response.ok ? null : JSON.stringify(result)
+      dorm_id: bill.rooms.dorm_id,
+      receiver_id: bill.tenants.line_user_id,
+      message_type: 'flex',
+      status: response.ok ? 'sent' : 'failed',
+      error_message: response.ok ? null : JSON.stringify(result)
     });
 
     return NextResponse.json({ success: response.ok, result });
@@ -79,8 +79,8 @@ export async function POST(req: Request) {
 
 function createConfirmFlexMessage(bill: any, dormName: string) {
   const totalAmount = Number(bill.total_amount) || 0;
-  const billingMonth = bill.billing_month ? 
-    new Date(bill.billing_month).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : 
+  const billingMonth = bill.billing_month ?
+    new Date(bill.billing_month).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) :
     '-';
 
   return {

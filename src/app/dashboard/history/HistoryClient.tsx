@@ -14,7 +14,8 @@ import {
     XCircleIcon,
     DocumentTextIcon,
     ArrowPathIcon,
-    TrashIcon
+    TrashIcon,
+    BanknotesIcon
 } from '@heroicons/react/24/outline'
 
 interface Bill {
@@ -145,7 +146,11 @@ export default function HistoryClient() {
     const filteredBills = bills.filter(bill => {
         const matchesSearch = bill.room_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
             bill.tenant_name.toLowerCase().includes(searchQuery.toLowerCase())
-        const matchesStatus = statusFilter === 'all' || bill.status === statusFilter
+        const matchesStatus = statusFilter === 'all' 
+            ? true 
+            : statusFilter === 'unpaid' 
+                ? (bill.status === 'unpaid' || bill.status === 'waiting_verify' || bill.status === 'overdue')
+                : bill.status === statusFilter
         return matchesSearch && matchesStatus
     })
 
@@ -154,13 +159,13 @@ export default function HistoryClient() {
             case 'paid':
                 return { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: CheckCircleIcon, label: 'ชำระแล้ว' }
             case 'waiting_verify':
-                return { bg: 'bg-blue-50', text: 'text-blue-600', icon: ClockIcon, label: 'รอตรวจสอบ' }
+                return { bg: 'bg-blue-50', text: 'text-blue-600', icon: ClockIcon, label: 'รอชำระ' }
             case 'cancelled':
                 return { bg: 'bg-gray-100', text: 'text-gray-400', icon: XCircleIcon, label: 'ยกเลิกแล้ว' }
             case 'overdue':
                 return { bg: 'bg-red-50', text: 'text-red-600', icon: ExclamationCircleIcon, label: 'ค้างชำระ' }
             default:
-                return { bg: 'bg-orange-50', text: 'text-orange-600', icon: DocumentTextIcon, label: 'ยังไม่จ่าย' }
+                return { bg: 'bg-orange-50', text: 'text-orange-600', icon: DocumentTextIcon, label: 'รอชำระ' }
         }
     }
 
@@ -181,12 +186,21 @@ export default function HistoryClient() {
                             <h1 className="text-xl font-black text-gray-800 tracking-tight">ประวัติบิล</h1>
                             <p className="text-[10px] font-bold text-purple-500 uppercase tracking-widest leading-none mt-1">{dormName}</p>
                         </div>
-                        <button
-                            onClick={fetchHistory}
-                            className="w-11 h-11 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 hover:bg-purple-100 active:scale-95 transition-all"
-                        >
-                            <ArrowPathIcon className={`w-5 h-5 stroke-[2.5] ${loading ? 'animate-spin' : ''}`} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => router.push('/dashboard/billing')}
+                                className="h-10 px-3 rounded-xl bg-emerald-50 flex items-center justify-center gap-1.5 text-emerald-600 hover:bg-emerald-100 active:scale-95 transition-all shadow-sm border border-emerald-100"
+                            >
+                                <BanknotesIcon className="w-4 h-4 stroke-[2.5]" />
+                                <span className="text-[10px] font-black uppercase tracking-tight">ออกบิล</span>
+                            </button>
+                            <button
+                                onClick={fetchHistory}
+                                className="w-11 h-11 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 hover:bg-purple-100 active:scale-95 transition-all shadow-sm"
+                            >
+                                <ArrowPathIcon className={`w-5 h-5 stroke-[2.5] ${loading ? 'animate-spin' : ''}`} />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Month Selector */}
@@ -225,12 +239,11 @@ export default function HistoryClient() {
                         </div>
 
                         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-                            {['all', 'paid', 'unpaid', 'waiting_verify', 'cancelled'].map((status) => {
+                            {['all', 'paid', 'unpaid', 'cancelled'].map((status) => {
                                 const active = statusFilter === status
                                 let label = 'ทั้งหมด'
                                 if (status === 'paid') label = 'ชำระแล้ว'
-                                if (status === 'unpaid') label = 'ยังไม่จ่าย'
-                                if (status === 'waiting_verify') label = 'รอชำระ'
+                                if (status === 'unpaid') label = 'รอชำระ'
                                 if (status === 'cancelled') label = 'ยกเลิก'
 
                                 return (
@@ -365,7 +378,7 @@ export default function HistoryClient() {
                                 </h2>
                                 <p className="text-gray-400 text-xs font-bold mt-2 px-6">
                                     {billToCancel.status === 'paid'
-                                        ? `คุณต้องการยกเลิกการยืนยันรับเงินของห้อง ${billToCancel.room_number} ใช่หรือไม่? สถานะจะกลับเป็น 'ยังไม่จ่าย'`
+                                        ? `คุณต้องการยกเลิกการยืนยันรับเงินของห้อง ${billToCancel.room_number} ใช่หรือไม่? สถานะจะกลับเป็น 'รอชำระ'`
                                         : `บิลใบนี้จะถูกยกเลิก และเปลี่ยนสถานะเป็น "ยกเลิกแล้ว" คุณยังสามารถออกบิลใหม่ของรอบเดือนนี้ได้ทันทีครับ`
                                     }
                                 </p>

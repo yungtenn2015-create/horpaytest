@@ -80,7 +80,7 @@ export default function AddTenantClient() {
     const [isContractSelectorOpen, setIsContractSelectorOpen] = useState(false)
     const [fetchingContracts, setFetchingContracts] = useState(false)
     const [contractSearch, setContractSearch] = useState('')
-    const [isFromContract, setIsFromContract] = useState(true) // Default to true to lock fields
+    const [isFromContract, setIsFromContract] = useState(false) // Only true when data is pulled from a contract
 
     useEffect(() => {
         async function fetchAvailableRooms() {
@@ -262,9 +262,25 @@ export default function AddTenantClient() {
 
             // Update Contract Status if pulled from contract
             if (fromContractId) {
+                // If the user unlocked to edit (!isFromContract), sync the edited values back to the contract record
+                const updatePayload: any = { status: 'moved_in' }
+                
+                if (!isFromContract) {
+                    updatePayload.name = tenantName.trim()
+                    updatePayload.phone = tenantPhone.trim()
+                    updatePayload.occupation = occupation.trim() || null
+                    updatePayload.address = address.trim() || null
+                    updatePayload.car_registration = carRegistration.trim() || null
+                    updatePayload.motorcycle_registration = motorcycleRegistration.trim() || null
+                    updatePayload.emergency_contact = emergencyContact.trim() || null
+                    updatePayload.deposit_amount = depositAmount || 0
+                    updatePayload.start_date = startDate
+                    updatePayload.end_date = finalEndDate
+                }
+
                 await supabase
                     .from('tenant_contracts')
-                    .update({ status: 'moved_in' })
+                    .update(updatePayload)
                     .eq('id', fromContractId)
             }
 
@@ -305,7 +321,7 @@ export default function AddTenantClient() {
                             <DocumentTextIcon className="w-8 h-8 opacity-50" />
                             เลือกระเบียนสัญญา
                         </h3>
-                        <p className="text-emerald-100 font-bold text-[11px] mt-2 uppercase tracking-widest opacity-80">ค้นหาตาม ชื่อ หรือ เบอร์โทรศัพท์</p>
+                        <p className="text-emerald-100 font-bold text-[11px] mt-2 uppercase tracking-widest opacity-80">รายการสัญญาใหม่ (รอย้ายเข้า)</p>
 
                         {/* Modal Search Input */}
                         <div className="mt-6 relative">
@@ -317,7 +333,7 @@ export default function AddTenantClient() {
                                 value={contractSearch}
                                 onChange={(e) => setContractSearch(e.target.value)}
                                 className="w-full bg-white/10 border border-white/20 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-white placeholder-emerald-100 outline-none focus:bg-white/20 transition-all shadow-inner"
-                                placeholder="พิมพ์ชื่อ หรือ เบอร์โทร..."
+                                placeholder="ค้นหาชื่อ หรือ เบอร์โทรศัพท์..."
                                 autoFocus
                             />
                         </div>
@@ -331,7 +347,7 @@ export default function AddTenantClient() {
                         ) : (() => {
                             const filtered = contracts.filter(c => {
                                 const search = contractSearch.trim().toLowerCase();
-                                if (!search) return false;
+                                if (!search) return true;
                                 return (
                                     c.name.toLowerCase().includes(search) ||
                                     c.phone.includes(search)
@@ -345,7 +361,7 @@ export default function AddTenantClient() {
                                             {contractSearch.trim() ? <DocumentTextIcon className="w-8 h-8" /> : <MagnifyingGlassIcon className="w-8 h-8" />}
                                         </div>
                                         <p className="text-gray-400 font-bold text-sm italic">
-                                            {!contractSearch.trim() ? 'พิมพ์ชื่อ หรือ เบอร์โทร เพื่อค้นหา...' : 'ไม่พบข้อมูลบันทึกสัญญาที่ตรงกับเงื่อนไข'}
+                                            {!contractSearch.trim() ? 'ยังไม่มีรายการสัญญาใหม่ในขณะนี้' : 'ไม่พบข้อมูลบันทึกสัญญาที่ตรงกับเงื่อนไข'}
                                         </p>
                                     </div>
                                 );
@@ -369,7 +385,7 @@ export default function AddTenantClient() {
                                         </div>
                                         <div className="flex items-center gap-2 text-gray-500 bg-white p-2 rounded-xl border border-gray-100">
                                             <BanknotesIcon className="w-4 h-4 text-green-600 shrink-0" />
-                                            <span>฿{c.deposit_amount.toLocaleString()}</span>
+                                            <span>มัดจำ {c.deposit_amount.toLocaleString()}</span>
                                         </div>
                                     </div>
                                 </button>
@@ -425,8 +441,14 @@ export default function AddTenantClient() {
                             setTenantName('')
                             setTenantPhone('')
                             setSelectedRoomId('')
-                            // filter out the room that was just rented
+                            // filter out the room and the used contract
                             setRooms(rooms.filter(r => r.id !== selectedRoomId))
+                            if (fromContractId) {
+                                setContracts(contracts.filter(c => c.id !== fromContractId))
+                            }
+                            setFromContractId('')
+                            setIsFromContract(false)
+                            setContractSearch('')
                         }}
                         className="w-full mt-3 bg-white border-2 border-gray-100 hover:bg-gray-50 text-gray-500 font-bold py-4 rounded-2xl transition-all active:scale-95"
                     >
@@ -557,7 +579,7 @@ export default function AddTenantClient() {
                         </div>
 
                         <div className="pt-2">
-                            <div className="flex gap-2 mb-4">
+                            <div className="flex flex-col sm:flex-row gap-3 mb-4">
                                 <button
                                     type="button"
                                     onClick={() => setIsContractSelectorOpen(true)}
@@ -568,11 +590,22 @@ export default function AddTenantClient() {
                                         }`}
                                 >
                                     {tenantName ? (
-                                        <><CheckCircleIcon className="w-5 h-5" /> เปลี่ยนข้อมูลสัญญาที่ดึงมา</>
+                                        <><DocumentTextIcon className="w-5 h-5" /> เปลี่ยนสัญญาโอนข้อมูล</>
                                     ) : (
                                         <><MagnifyingGlassIcon className="w-5 h-5 group-hover:scale-110 transition-transform" /> ดึงข้อมูลจาก "บันทึกสัญญา"</>
                                     )}
                                 </button>
+                                
+                                {isFromContract && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsFromContract(false)}
+                                        className="h-14 px-6 bg-white border-2 border-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center gap-2 font-black text-xs hover:bg-emerald-50 transition-all active:scale-95 shadow-sm"
+                                    >
+                                        <ArrowPathIcon className="w-4 h-4" />
+                                        ปลดล็อคเพื่อแก้ไข
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -776,14 +809,16 @@ export default function AddTenantClient() {
                                     <div className="relative">
                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-400">฿</div>
                                         <input
-                                            type="text"
-                                            value={depositAmount.toLocaleString()}
+                                            type="number"
+                                            value={depositAmount || ''}
+                                            onChange={(e) => setDepositAmount(Number(e.target.value) || 0)}
                                             readOnly={isFromContract}
                                             className={`block w-full pl-10 pr-4 h-14 border-2 focus:ring-4 sm:text-sm rounded-[1.2rem] transition-all font-bold 
                                                 ${isFromContract
                                                     ? 'bg-gray-50/80 border-gray-100 text-gray-500 cursor-not-allowed'
                                                     : 'bg-white border-gray-200 focus:border-emerald-600 focus:ring-emerald-500/5 text-gray-900'
                                                 }`}
+                                            placeholder="0"
                                         />
                                     </div>
                                 </div>

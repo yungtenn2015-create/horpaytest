@@ -34,27 +34,27 @@ export async function POST(req: Request) {
 
     // INITIAL LOG - To see if we even reached here
     await supabaseAdmin.from('line_notification_logs').insert({
-        dorm_id: bill.rooms.dorm_id,
-        receiver_id: bill.tenants?.line_user_id || 'UNKNOWN',
-        message_type: 'debug',
-        status: 'starting',
-        error_message: `Attempting to send bill ${billId}`
+      dorm_id: bill.rooms.dorm_id,
+      receiver_id: bill.tenants?.line_user_id || 'UNKNOWN',
+      message_type: 'debug',
+      status: 'starting',
+      error_message: `Attempting to send bill ${billId}`
     });
 
     if (!bill.tenants?.line_user_id) {
-       console.error('Tenant has no LINE linked. Bill ID:', billId, 'Tenant:', bill.tenants);
-       await supabaseAdmin.from('line_notification_logs').insert({
-          dorm_id: bill.rooms.dorm_id,
-          receiver_id: 'UNKNOWN',
-          message_type: 'error',
-          status: 'failed',
-          error_message: 'Tenant has no LINE linked'
-       });
-       return NextResponse.json({ error: 'Tenant has no LINE linked' }, { status: 400 });
+      console.error('Tenant has no LINE linked. Bill ID:', billId, 'Tenant:', bill.tenants);
+      await supabaseAdmin.from('line_notification_logs').insert({
+        dorm_id: bill.rooms.dorm_id,
+        receiver_id: 'UNKNOWN',
+        message_type: 'error',
+        status: 'failed',
+        error_message: 'Tenant has no LINE linked'
+      });
+      return NextResponse.json({ error: 'Tenant has no LINE linked' }, { status: 400 });
     }
 
     // 2. Fetch Dorm & settings
-    const [ { data: dorm }, { data: settings }, { data: dormConfig } ] = await Promise.all([
+    const [{ data: dorm }, { data: settings }, { data: dormConfig }] = await Promise.all([
       supabaseAdmin.from('dorms').select('name, contact_number').eq('id', bill.rooms.dorm_id).single(),
       supabaseAdmin.from('dorm_settings').select('*').eq('dorm_id', bill.rooms.dorm_id).maybeSingle(),
       supabaseAdmin.from('line_oa_configs').select('*').eq('dorm_id', bill.rooms.dorm_id).maybeSingle()
@@ -63,11 +63,11 @@ export async function POST(req: Request) {
     if (!dormConfig) {
       console.error('LINE OA not configured for dorm:', bill.rooms.dorm_id);
       await supabaseAdmin.from('line_notification_logs').insert({
-          dorm_id: bill.rooms.dorm_id,
-          receiver_id: bill.tenants.line_user_id,
-          message_type: 'error',
-          status: 'failed',
-          error_message: 'LINE OA not configured'
+        dorm_id: bill.rooms.dorm_id,
+        receiver_id: bill.tenants.line_user_id,
+        message_type: 'error',
+        status: 'failed',
+        error_message: 'LINE OA not configured'
       });
       return NextResponse.json({ error: 'LINE OA not configured' }, { status: 400 });
     }
@@ -92,11 +92,11 @@ export async function POST(req: Request) {
 
     // 5. Log notification (Final result)
     await supabaseAdmin.from('line_notification_logs').insert({
-        dorm_id: bill.rooms.dorm_id,
-        receiver_id: bill.tenants.line_user_id,
-        message_type: 'flex',
-        status: response.ok ? 'sent' : 'failed',
-        error_message: response.ok ? null : JSON.stringify(result)
+      dorm_id: bill.rooms.dorm_id,
+      receiver_id: bill.tenants.line_user_id,
+      message_type: 'flex',
+      status: response.ok ? 'sent' : 'failed',
+      error_message: response.ok ? null : JSON.stringify(result)
     });
 
     return NextResponse.json({ success: response.ok, result });
@@ -117,16 +117,16 @@ function createBillFlexMessage(bill: any, dorm: any, bankSettings: any) {
 
   const roomNumber = bill.rooms?.room_number || '-';
 
-  const billingMonth = bill.billing_month ? 
-    new Date(bill.billing_month).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) : 
+  const billingMonth = bill.billing_month ?
+    new Date(bill.billing_month).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }) :
     '-';
 
-  const dormLabel = dorm?.contact_number ? 
-    `${dormName} (โทร: ${dorm?.contact_number})` : 
+  const dormLabel = dorm?.contact_number ?
+    `${dormName} (โทร: ${dorm?.contact_number})` :
     dormName;
 
-  const dueDate = bill.due_date ? 
-    new Date(bill.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : 
+  const dueDate = bill.due_date ?
+    new Date(bill.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) :
     '-';
 
   return {

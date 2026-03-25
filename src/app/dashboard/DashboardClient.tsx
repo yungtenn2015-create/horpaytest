@@ -98,6 +98,12 @@ interface TenantContract {
     deposit_amount: number;
     status: 'pending' | 'moved_in' | 'cancelled' | 'expired';
     created_at: string;
+    tenants?: {
+        room_id: string;
+        rooms: {
+            room_number: string;
+        };
+    }[];
 }
 
 export default function DashboardClient() {
@@ -315,7 +321,8 @@ export default function DashboardClient() {
             unpaid: 0,
             overdue: 0
         },
-        historicalRevenue: [] as { month: string, amount: number }[]
+        historicalRevenue: [] as { month: string, amount: number }[],
+        historicalUtilities: [] as { month: string, electricity: number, water: number }[]
     })
     const [fetchingOverview, setFetchingOverview] = useState(false)
 
@@ -422,7 +429,7 @@ export default function DashboardClient() {
         try {
             const { data, error } = await supabase
                 .from('tenant_contracts')
-                .select('*')
+                .select('*, tenants(room_id, rooms(room_number))')
                 .eq('dorm_id', dorm.id)
                 .order('created_at', { ascending: false })
 
@@ -485,11 +492,26 @@ export default function DashboardClient() {
                     address: contractFormData.address || null
                 }
 
-                await supabase
+                const { data: updatedTenants } = await supabase
                     .from('tenants')
                     .update(tenantSyncPayload)
                     .eq('tenant_contract_id', editingContract.id)
-                    .eq('status', 'active') // Only update active ones to be safe
+                    .eq('status', 'active')
+                    .select('id')
+
+                // Sync to lease_contracts as well
+                if (updatedTenants && updatedTenants.length > 0) {
+                    const activeTenantIds = updatedTenants.map(t => t.id)
+                    await supabase
+                        .from('lease_contracts')
+                        .update({
+                            start_date: contractFormData.start_date,
+                            end_date: contractFormData.end_date,
+                            deposit_amount: Number(contractFormData.deposit_amount) || 0
+                        })
+                        .in('tenant_id', activeTenantIds)
+                        .eq('status', 'active')
+                }
             } else {
                 const { error } = await supabase
                     .from('tenant_contracts')
@@ -523,11 +545,34 @@ export default function DashboardClient() {
         }
     }
 
-    const handleDeleteContract = async (id: string) => {
+    const handleDeleteContract = async (id: string, status?: string) => {
+        if (status === 'moved_in') {
+            alert('ไม่สามารถลบสัญญานี้ได้ เนื่องจากผู้เช่ายังพักอยู่จริง กรุณาทำรายการย้ายออกก่อน')
+            return
+        }
+
         if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบบันทึกสัญญานี้?')) return
 
         const supabase = createClient()
         try {
+            // Check for any truly active tenant in the database just in case UI status is old
+            const { data: activeTenants } = await supabase
+                .from('tenants')
+                .select('id')
+                .eq('tenant_contract_id', id)
+                .eq('status', 'active')
+
+            if (activeTenants && activeTenants.length > 0) {
+                alert('ไม่สามารถลบสัญญานี้ได้ เนื่องจากมีผู้เช่าที่เข้าพักอยู่จริงในระบบ')
+                return
+            }
+
+            // Unlink tenants to satisfy foreign key constraint
+            await supabase
+                .from('tenants')
+                .update({ tenant_contract_id: null })
+                .eq('tenant_contract_id', id)
+
             const { error } = await supabase
                 .from('tenant_contracts')
                 .delete()
@@ -696,12 +741,12 @@ export default function DashboardClient() {
 
             if (billsErr) throw billsErr;
 
-            // Historical Revenue (Paid)
+            // Historical Data (Revenue & Utilities)
             const { data: historyBills } = await supabase
                 .from('bills')
-                .select('total_amount, billing_month')
+                .select('total_amount, billing_month, utilities(curr_water_meter, prev_water_meter, curr_electric_meter, prev_electric_meter)')
                 .in('room_id', activeRooms.map(r => r.id))
-                .eq('status', 'paid')
+                .neq('status', 'cancelled')
                 .gte('billing_month', historyDateStr);
 
             // Process Current Month Stats - Unified Room-Centric Logic
@@ -824,18 +869,36 @@ export default function DashboardClient() {
                 movingOut: movingOutIdsSet.size
             });
 
-            // Process History
+            // Process Historics
             const historyMap = new Map();
+            const utilityHistoryMap = new Map();
+
             historyBills?.forEach(b => {
                 const m = new Date(b.billing_month).toLocaleDateString('th-TH', { month: 'short' });
+                
+                // Revenue
                 historyMap.set(m, (historyMap.get(m) || 0) + Number(b.total_amount || 0));
+
+                // Utilities
+                const u = utilityHistoryMap.get(m) || { electricity: 0, water: 0 };
+                const utils = Array.isArray(b.utilities) ? b.utilities[0] : b.utilities;
+                if (utils) {
+                    u.electricity += (Number(utils.curr_electric_meter) - Number(utils.prev_electric_meter)) || 0;
+                    u.water += (Number(utils.curr_water_meter) - Number(utils.prev_water_meter)) || 0;
+                }
+                utilityHistoryMap.set(m, u);
             });
 
             const historicalRevenue = [];
+            const historicalUtilities = [];
             for (let i = 5; i >= 0; i--) {
                 const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
                 const m = d.toLocaleDateString('th-TH', { month: 'short' });
+                
                 historicalRevenue.push({ month: m, amount: historyMap.get(m) || 0 });
+                
+                const uVals = utilityHistoryMap.get(m) || { electricity: 0, water: 0 };
+                historicalUtilities.push({ month: m, ...uVals });
             }
 
             setOverviewData({
@@ -849,7 +912,8 @@ export default function DashboardClient() {
                 electricityUnits: electric,
                 electricityAmount: electricAmt,
                 billStatusCounts: counts,
-                historicalRevenue
+                historicalRevenue,
+                historicalUtilities
             });
 
             // 5. Get Settings & LINE Config (Only once or if needed)
@@ -1020,7 +1084,7 @@ export default function DashboardClient() {
                         <h1 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-3">
                             <span className="text-4xl">📄</span> บันทึกสัญญา
                         </h1>
-                        <p className="text-gray-400 font-bold text-sm mt-1">จัดการข้อมูลผู้เช่าและสัญญาเบื้องต้น</p>
+                        <p className="text-black-400 font-bold text-sm mt-1">จัดการข้อมูลผู้เช่าและสัญญาเบื้องต้น</p>
                     </div>
                     <button
                         onClick={() => {
@@ -1051,7 +1115,7 @@ export default function DashboardClient() {
                             value={contractSearchQuery}
                             onChange={(e) => setContractSearchQuery(e.target.value)}
                             className="w-full h-14 bg-white border-2 border-gray-100 rounded-2xl pl-12 pr-4 font-bold text-gray-900 focus:border-green-500 focus:bg-white transition-all outline-none shadow-sm"
-                            placeholder="ค้นหาตาม ชื่อ หรือ เบอร์โทรศัพท์..."
+                            placeholder="ค้นหาตาม ชื่อ, เบอร์โทรศัพท์ หรือ ห้อง..."
                         />
                     </div>
 
@@ -1066,7 +1130,7 @@ export default function DashboardClient() {
                         </button>
                         <button
                             onClick={() => setContractTab('pending')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[1.5rem] font-black text-[13px] transition-all duration-300 ${contractTab === 'pending' ? 'bg-white text-blue-600 shadow-md ring-1 ring-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[1.5rem] font-black text-[13px] transition-all duration-300 ${contractTab === 'pending' ? 'bg-white text-green-600 shadow-md ring-1 ring-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
                         >
                             <PlusIcon className="w-4 h-4" />
                             สัญญาใหม่
@@ -1097,7 +1161,10 @@ export default function DashboardClient() {
                     ) : (() => {
                         const filtered = contracts.filter(c => {
                             const query = contractSearchQuery.toLowerCase();
-                            const matchesSearch = c.name.toLowerCase().includes(query) || c.phone.includes(query);
+                            const roomNum = (c as any).tenants?.[0]?.rooms?.room_number?.toLowerCase() || '';
+                            const matchesSearch = c.name.toLowerCase().includes(query) ||
+                                c.phone.includes(query) ||
+                                roomNum.includes(query);
 
                             let matchesTab = false;
                             if (contractTab === 'active') {
@@ -1127,9 +1194,9 @@ export default function DashboardClient() {
                                 {filtered.map((contract) => (
                                     <div
                                         key={contract.id}
-                                        className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-blue-100 transition-all group relative overflow-hidden"
+                                        className={`bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden ${contract.status === 'moved_in' ? 'hover:border-blue-100' : 'hover:border-green-100'}`}
                                     >
-                                        <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                                        <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 ${contract.status === 'moved_in' ? 'bg-blue-50/50' : 'bg-green-50/50'}`} />
 
                                         {/* Status Badge */}
                                         <div className="absolute top-4 right-16 z-20">
@@ -1138,21 +1205,29 @@ export default function DashboardClient() {
                                                     พักอยู่ปัจจุบัน
                                                 </span>
                                             )}
-                                            {(contract.status === 'cancelled' || contract.status === 'expired') && (
-                                                <span className="px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-[10px] font-black border border-gray-200 uppercase tracking-widest">
-                                                    สัญญาสิ้นสุด
-                                                </span>
-                                            )}
                                         </div>
 
                                         <div className="flex items-start justify-between relative z-10">
                                             <div className="flex items-start gap-4">
-                                                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-colors duration-300 ${contract.status === 'moved_in'
+                                                    ? 'bg-blue-50 text-blue-600 border-blue-100 group-hover:bg-blue-600'
+                                                    : 'bg-green-50 text-green-600 border-green-100 group-hover:bg-green-600'
+                                                    } group-hover:text-white`}>
                                                     <UserIcon className="w-6 h-6" />
                                                 </div>
                                                 <div>
-                                                    <h3 className="text-lg font-black text-gray-800 tracking-tight group-hover:text-green-700 transition-colors">{contract.name}</h3>
-                                                    <p className="text-xs font-bold text-gray-400 flex items-center gap-1.5 mt-0.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className={`text-lg font-black text-gray-800 tracking-tight transition-colors ${contract.status === 'moved_in' ? 'group-hover:text-blue-700' : 'group-hover:text-green-700'}`}>{contract.name}</h3>
+                                                        {(contract as any).tenants?.[0]?.rooms?.room_number && (
+                                                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border uppercase tracking-widest ${contract.status === 'moved_in'
+                                                                ? 'bg-blue-50 text-blue-600 border-blue-100'
+                                                                : 'bg-green-100 text-green-700 border-green-200'
+                                                                }`}>
+                                                                ห้อง {(contract as any).tenants[0].rooms.room_number}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs font-bold text-slate-600 flex items-center gap-1.5 mt-0.5">
                                                         <DevicePhoneMobileIcon className="w-3.5 h-3.5" />
                                                         {contract.phone}
                                                     </p>
@@ -1161,14 +1236,21 @@ export default function DashboardClient() {
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => openEditContract(contract)}
-                                                    className="w-10 h-10 bg-gray-50 text-gray-400 hover:bg-green-50 hover:text-green-600 rounded-xl flex items-center justify-center transition-all active:scale-90"
-                                                    title="แก้ไข"
+                                                    className={`w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center transition-all active:scale-90 ${(contract.status === 'moved_in' || contract.status === 'pending')
+                                                        ? `text-gray-400 ${contract.status === 'moved_in' ? 'hover:bg-blue-50 hover:text-blue-600' : 'hover:bg-green-50 hover:text-green-600'}`
+                                                        : `text-green-400 hover:bg-green-50 hover:text-green-600`
+                                                        }`}
+                                                    title={(contract.status === 'moved_in' || contract.status === 'pending') ? "แก้ไข" : "ดูข้อมูล"}
                                                 >
-                                                    <PencilSquareIcon className="w-5 h-5" />
+                                                    {(contract.status === 'moved_in' || contract.status === 'pending') ? (
+                                                        <PencilSquareIcon className="w-5 h-5" />
+                                                    ) : (
+                                                        <MagnifyingGlassIcon className="w-5 h-5" />
+                                                    )}
                                                 </button>
                                                 {contract.status !== 'moved_in' && (
                                                     <button
-                                                        onClick={() => handleDeleteContract(contract.id)}
+                                                        onClick={() => handleDeleteContract(contract.id, contract.status)}
                                                         className="w-10 h-10 bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-xl flex items-center justify-center transition-all active:scale-90"
                                                         title="ลบ"
                                                     >
@@ -1180,12 +1262,12 @@ export default function DashboardClient() {
 
                                         <div className="grid grid-cols-2 gap-3 mt-5 relative z-10">
                                             <div className="p-3 bg-gray-50 rounded-2xl flex flex-col gap-0.5">
-                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">เงินประกัน</span>
-                                                <span className="text-sm font-black text-gray-800">฿{contract.deposit_amount.toLocaleString()}</span>
+                                                <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">เงินประกัน</span>
+                                                <span className="text-sm font-black text-gray-900">฿{contract.deposit_amount.toLocaleString()}</span>
                                             </div>
                                             <div className="p-3 bg-gray-50 rounded-2xl flex flex-col gap-0.5">
-                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ระยะเวลา</span>
-                                                <span className="text-sm font-black text-gray-800">
+                                                <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">ระยะเวลา</span>
+                                                <span className="text-sm font-black text-gray-900">
                                                     {new Date(contract.start_date).toLocaleDateString('th-TH', { month: 'short', year: '2-digit' })} - {new Date(contract.end_date).toLocaleDateString('th-TH', { month: 'short', year: '2-digit' })}
                                                 </span>
                                             </div>
@@ -1194,7 +1276,7 @@ export default function DashboardClient() {
                                         <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between relative z-10">
                                             <div className="flex items-center gap-3">
                                                 {contract.car_registration && (
-                                                    <div className="px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black flex items-center gap-1">
+                                                    <div className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 ${contract.status === 'moved_in' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-700'}`}>
                                                         🚗 {contract.car_registration}
                                                     </div>
                                                 )}
@@ -1251,9 +1333,16 @@ export default function DashboardClient() {
                             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
                                 <DocumentPlusIcon className="w-6 h-6" />
                             </div>
-                            {editingContract ? 'แก้ไขข้อมูลสัญญา' : 'บันทึกข้อมูลสัญญาใหม่'}
+                            {editingContract
+                                ? ((editingContract.status === 'expired' || editingContract.status === 'cancelled') ? 'ดูข้อมูลสัญญา' : 'แก้ไขข้อมูลสัญญา')
+                                : 'บันทึกข้อมูลสัญญาใหม่'
+                            }
                         </h3>
-                        <p className="text-emerald-100 font-bold text-sm mt-2 opacity-80">กรอกข้อมูลผู้เช่าเพื่อเตรียมทำสัญญาเช่า</p>
+                        <p className="text-emerald-100 font-bold text-sm mt-2 opacity-80">
+                            {(editingContract?.status === 'expired' || editingContract?.status === 'cancelled')
+                                ? 'ข้อมูลสัญญาที่สิ้นสุดแล้ว (อ่านอย่างเดียว)'
+                                : 'กรอกข้อมูลผู้เช่าเพื่อเตรียมทำสัญญาเช่า'}
+                        </p>
                     </div>
 
                     <form onSubmit={handleSaveContract} className="flex-1 overflow-y-auto p-8 pb-32 space-y-6 custom-scrollbar bg-white">
@@ -1276,6 +1365,7 @@ export default function DashboardClient() {
                                 <label className="text-[14px] font-bold text-gray-900 uppercase tracking-wide ml-1">ชื่อ-นามสกุล <span className="text-red-500">*</span></label>
                                 <input
                                     required
+                                    readOnly={editingContract?.status === 'expired' || editingContract?.status === 'cancelled'}
                                     type="text"
                                     value={contractFormData.name}
                                     onChange={(e) => setContractFormData({ ...contractFormData, name: e.target.value })}
@@ -1289,6 +1379,7 @@ export default function DashboardClient() {
                                 <label className="text-[14px] font-bold text-gray-900 uppercase tracking-wide ml-1">เบอร์โทรศัพท์ <span className="text-red-500">*</span></label>
                                 <input
                                     required
+                                    readOnly={editingContract?.status === 'expired' || editingContract?.status === 'cancelled'}
                                     type="text"
                                     maxLength={10}
                                     value={contractFormData.phone}
@@ -1302,6 +1393,7 @@ export default function DashboardClient() {
                             <div className="space-y-2">
                                 <label className="text-[14px] font-bold text-gray-900 uppercase tracking-wide ml-1">อาชีพ</label>
                                 <input
+                                    readOnly={editingContract?.status === 'expired' || editingContract?.status === 'cancelled'}
                                     type="text"
                                     value={contractFormData.occupation}
                                     onChange={(e) => setContractFormData({ ...contractFormData, occupation: e.target.value })}
@@ -1314,6 +1406,7 @@ export default function DashboardClient() {
                             <div className="sm:col-span-2 space-y-2">
                                 <label className="text-[14px] font-bold text-gray-900 uppercase tracking-wide ml-1">ที่อยู่ตามบัตรประชาชน</label>
                                 <textarea
+                                    readOnly={editingContract?.status === 'expired' || editingContract?.status === 'cancelled'}
                                     rows={2}
                                     value={contractFormData.address}
                                     onChange={(e) => setContractFormData({ ...contractFormData, address: e.target.value })}
@@ -1326,6 +1419,7 @@ export default function DashboardClient() {
                             <div className="space-y-2">
                                 <label className="text-[14px] font-bold text-gray-900 uppercase tracking-wide ml-1">ทะเบียนรถยนต์</label>
                                 <input
+                                    readOnly={editingContract?.status === 'expired' || editingContract?.status === 'cancelled'}
                                     type="text"
                                     value={contractFormData.car_registration}
                                     onChange={(e) => setContractFormData({ ...contractFormData, car_registration: e.target.value })}
@@ -1338,6 +1432,7 @@ export default function DashboardClient() {
                             <div className="space-y-2">
                                 <label className="text-[14px] font-bold text-gray-900 uppercase tracking-wide ml-1">ทะเบียนมอเตอร์ไซค์</label>
                                 <input
+                                    readOnly={editingContract?.status === 'expired' || editingContract?.status === 'cancelled'}
                                     type="text"
                                     value={contractFormData.motorcycle_registration}
                                     onChange={(e) => setContractFormData({ ...contractFormData, motorcycle_registration: e.target.value })}
@@ -1350,6 +1445,7 @@ export default function DashboardClient() {
                             <div className="sm:col-span-2 space-y-2">
                                 <label className="text-[14px] font-bold text-gray-900 uppercase tracking-wide ml-1">ผู้ติดต่อฉุกเฉิน</label>
                                 <input
+                                    readOnly={editingContract?.status === 'expired' || editingContract?.status === 'cancelled'}
                                     type="text"
                                     value={contractFormData.emergency_contact}
                                     onChange={(e) => setContractFormData({ ...contractFormData, emergency_contact: e.target.value })}
@@ -1364,8 +1460,12 @@ export default function DashboardClient() {
                             <div className="space-y-2 group/date1">
                                 <label className="text-[14px] font-bold text-gray-900 uppercase tracking-wide ml-1">วันที่เริ่มสัญญา <span className="text-red-500">*</span></label>
                                 <div
-                                    className="relative h-14 transition-all cursor-pointer"
-                                    onClick={() => openCustomCalendar('start_date', contractFormData.start_date)}
+                                    className={`relative h-14 transition-all ${!(editingContract?.status === 'expired' || editingContract?.status === 'cancelled') ? 'cursor-pointer' : 'cursor-default'}`}
+                                    onClick={() => {
+                                        if (!(editingContract?.status === 'expired' || editingContract?.status === 'cancelled')) {
+                                            openCustomCalendar('start_date', contractFormData.start_date);
+                                        }
+                                    }}
                                 >
                                     <div className="absolute inset-0 bg-gray-50 border-2 border-transparent rounded-2xl group-focus-within/date1:bg-white group-focus-within/date1:border-primary/30 group-focus-within/date1:shadow-lg group-focus-within/date1:shadow-primary/5 transition-all" />
                                     <div className="absolute inset-0 px-5 flex items-center justify-between pointer-events-none">
@@ -1375,9 +1475,11 @@ export default function DashboardClient() {
                                                 {contractFormData.start_date ? formatThaiDate(contractFormData.start_date) : 'วว/ดด/พ.ศ.'}
                                             </span>
                                         </div>
-                                        <div className="w-8 h-8 rounded-xl bg-white shadow-sm border border-gray-100 flex items-center justify-center">
-                                            <ChevronRightIcon className="w-4 h-4 text-gray-300" />
-                                        </div>
+                                        {!(editingContract?.status === 'expired' || editingContract?.status === 'cancelled') && (
+                                            <div className="w-8 h-8 rounded-xl bg-white shadow-sm border border-gray-100 flex items-center justify-center">
+                                                <ChevronRightIcon className="w-4 h-4 text-gray-300" />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1386,33 +1488,39 @@ export default function DashboardClient() {
                                 <label className="text-[14px] font-bold text-gray-900 uppercase tracking-wide ml-1">วันที่สิ้นสุดสัญญา <span className="text-red-500">*</span></label>
 
                                 {/* Quick Duration Chips */}
-                                <div className="flex flex-wrap gap-2 mb-3">
-                                    {[
-                                        { label: '1 เดือน', m: 1 },
-                                        { label: '3 เดือน', m: 3 },
-                                        { label: '6 เดือน', m: 6 },
-                                        { label: '1 ปี', m: 12 },
-                                        { label: '2 ปี', m: 24 }
-                                    ].map((opt) => (
-                                        <button
-                                            key={opt.label}
-                                            type="button"
-                                            onClick={() => {
-                                                if (!contractFormData.start_date) return;
-                                                const d = new Date(contractFormData.start_date);
-                                                d.setMonth(d.getMonth() + opt.m);
-                                                setContractFormData({ ...contractFormData, end_date: d.toISOString().split('T')[0] });
-                                            }}
-                                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-black rounded-lg border border-emerald-100 transition-all active:scale-95 uppercase tracking-wider"
-                                        >
-                                            + {opt.label}
-                                        </button>
-                                    ))}
-                                </div>
+                                {!(editingContract?.status === 'expired' || editingContract?.status === 'cancelled') && (
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        {[
+                                            { label: '1 เดือน', m: 1 },
+                                            { label: '3 เดือน', m: 3 },
+                                            { label: '6 เดือน', m: 6 },
+                                            { label: '1 ปี', m: 12 },
+                                            { label: '2 ปี', m: 24 }
+                                        ].map((opt) => (
+                                            <button
+                                                key={opt.label}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (!contractFormData.start_date) return;
+                                                    const d = new Date(contractFormData.start_date);
+                                                    d.setMonth(d.getMonth() + opt.m);
+                                                    setContractFormData({ ...contractFormData, end_date: d.toISOString().split('T')[0] });
+                                                }}
+                                                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-black rounded-lg border border-emerald-100 transition-all active:scale-95 uppercase tracking-wider"
+                                            >
+                                                + {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
 
                                 <div
-                                    className="relative h-14 transition-all cursor-pointer"
-                                    onClick={() => openCustomCalendar('end_date', contractFormData.end_date)}
+                                    className={`relative h-14 transition-all ${!(editingContract?.status === 'expired' || editingContract?.status === 'cancelled') ? 'cursor-pointer' : 'cursor-default'}`}
+                                    onClick={() => {
+                                        if (!(editingContract?.status === 'expired' || editingContract?.status === 'cancelled')) {
+                                            openCustomCalendar('end_date', contractFormData.end_date);
+                                        }
+                                    }}
                                 >
                                     <div className="absolute inset-0 bg-gray-50 border-2 border-transparent rounded-2xl group-focus-within/date2:bg-white group-focus-within/date2:border-primary/30 group-focus-within/date2:shadow-lg group-focus-within/date2:shadow-primary/5 transition-all" />
                                     <div className="absolute inset-0 px-5 flex items-center justify-between pointer-events-none">
@@ -1422,9 +1530,11 @@ export default function DashboardClient() {
                                                 {contractFormData.end_date ? formatThaiDate(contractFormData.end_date) : 'วว/ดด/พ.ศ.'}
                                             </span>
                                         </div>
-                                        <div className="w-8 h-8 rounded-xl bg-white shadow-sm border border-gray-100 flex items-center justify-center">
-                                            <ChevronRightIcon className="w-4 h-4 text-gray-300" />
-                                        </div>
+                                        {!(editingContract?.status === 'expired' || editingContract?.status === 'cancelled') && (
+                                            <div className="w-8 h-8 rounded-xl bg-white shadow-sm border border-gray-100 flex items-center justify-center">
+                                                <ChevronRightIcon className="w-4 h-4 text-gray-300" />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1436,6 +1546,7 @@ export default function DashboardClient() {
                                     <div className="absolute left-5 top-1/2 -translate-y-1/2 font-black text-gray-400">฿</div>
                                     <input
                                         required
+                                        readOnly={editingContract?.status === 'expired' || editingContract?.status === 'cancelled'}
                                         type="number"
                                         value={contractFormData.deposit_amount}
                                         onChange={(e) => setContractFormData({ ...contractFormData, deposit_amount: e.target.value })}
@@ -1447,17 +1558,27 @@ export default function DashboardClient() {
                         </div>
 
                         <div className="pt-4">
-                            <button
-                                type="submit"
-                                disabled={isSubmittingContract}
-                                className="w-full h-16 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-2xl font-black text-lg shadow-xl shadow-green-100/50 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
-                            >
-                                {isSubmittingContract ? (
-                                    <ArrowPathIcon className="w-6 h-6 animate-spin" />
-                                ) : (
-                                    <>{editingContract ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลสัญญา'}</>
-                                )}
-                            </button>
+                            {!(editingContract?.status === 'expired' || editingContract?.status === 'cancelled') ? (
+                                <button
+                                    type="submit"
+                                    disabled={isSubmittingContract}
+                                    className="w-full h-16 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-2xl font-black text-lg shadow-xl shadow-green-100/50 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                    {isSubmittingContract ? (
+                                        <ArrowPathIcon className="w-6 h-6 animate-spin" />
+                                    ) : (
+                                        <>{editingContract ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลสัญญา'}</>
+                                    )}
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsContractFormOpen(false)}
+                                    className="w-full h-16 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-2xl font-black text-lg flex items-center justify-center gap-3 transition-all"
+                                >
+                                    ปิดหน้าต่าง
+                                </button>
+                            )}
                         </div>
                     </form>
                 </div>
@@ -1550,8 +1671,8 @@ export default function DashboardClient() {
                                         className="w-full text-left p-4 rounded-2xl hover:bg-gray-50 transition-all group flex gap-4"
                                     >
                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border-2 border-white shadow-sm ${notif.type === 'verify' ? 'bg-sky-50 text-sky-500' :
-                                                notif.type === 'overdue' ? 'bg-orange-50 text-orange-500' :
-                                                    'bg-amber-50 text-amber-500'
+                                            notif.type === 'overdue' ? 'bg-orange-50 text-orange-500' :
+                                                'bg-amber-50 text-amber-500'
                                             }`}>
                                             {notif.type === 'verify' && <ClockIcon className="w-5 h-5 stroke-[2.5]" />}
                                             {notif.type === 'overdue' && <ExclamationTriangleIcon className="w-5 h-5 stroke-[2.5]" />}
@@ -1617,8 +1738,8 @@ export default function DashboardClient() {
                                             <button
                                                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
                                                 className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all active:scale-95 border shadow-sm backdrop-blur-md ${isNotificationsOpen
-                                                        ? 'bg-white text-primary border-white'
-                                                        : 'bg-white/20 hover:bg-white/30 text-white border-white/20'
+                                                    ? 'bg-white text-primary border-white'
+                                                    : 'bg-white/20 hover:bg-white/30 text-white border-white/20'
                                                     }`}
                                             >
                                                 <span className="material-symbols-outlined text-[26px]">notifications</span>
@@ -1868,38 +1989,6 @@ export default function DashboardClient() {
                                     </div>
                                 </div>
 
-                                {/* ── Revenue Graph ── */}
-                                <div className="bg-white rounded-[1.5rem] p-5 border-2 border-gray-50 shadow-sm">
-                                    <h3 className="text-sm font-black text-gray-800 mb-6 flex items-center gap-2">
-                                        <ClockIcon className="w-4 h-4 text-green-500" />
-                                        รายรับรายเดือน (6 เดือนล่าสุด)
-                                    </h3>
-
-                                    <div className="h-40 flex items-end justify-between gap-3 px-2">
-                                        {overviewData.historicalRevenue.map((data, i) => {
-                                            const maxAmount = Math.max(...overviewData.historicalRevenue.map(h => h.amount), 1);
-                                            const height = (data.amount / maxAmount) * 100;
-                                            return (
-                                                <div key={i} className="flex-1 flex flex-col items-center gap-3 group relative">
-                                                    {/* Tooltip */}
-                                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                                                        ฿{data.amount.toLocaleString()}
-                                                    </div>
-                                                    <div className="w-full relative flex items-end justify-center h-full">
-                                                        <div
-                                                            className={`w-full rounded-t-lg transition-all duration-700 ${i === 5 ? 'bg-green-500' : 'bg-gray-100 group-hover:bg-green-200'}`}
-                                                            style={{ height: `${Math.max(height, 5)}%` }}
-                                                        />
-                                                    </div>
-                                                    <span className={`text-[10px] font-black ${i === 5 ? 'text-green-600' : 'text-gray-400'}`}>
-                                                        {data.month}
-                                                    </span>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-
                                 {/* ── Status & Utilities Grid ── */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="bg-blue-50 rounded-2xl p-4 border-2 border-blue-100">
@@ -1937,7 +2026,7 @@ export default function DashboardClient() {
                                 {/* ── Bill Status Summary ── */}
                                 <div className="bg-white rounded-[1.5rem] p-1.5 border-2 border-gray-50 shadow-sm overflow-hidden">
                                     <div className="p-3 border-b border-gray-50 bg-gray-50/30 rounded-t-[1.3rem]">
-                                        <h3 className="text-[13px] font-black text-gray-800 tracking-tight">สถานะบิลเดือนนี้</h3>
+                                        <h3 className="text-[13px] font-black text-gray-900 tracking-tight">สถานะบิลเดือนนี้</h3>
                                     </div>
                                     <div className="divide-y divide-gray-50">
                                         <div
@@ -1948,7 +2037,7 @@ export default function DashboardClient() {
                                                 <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center text-green-600">
                                                     <CheckCircleIcon className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-sm font-bold text-gray-700 group-hover:text-green-600 transition-colors">ชำระแล้ว</span>
+                                                <span className="text-sm font-bold text-gray-900 group-hover:text-green-600 transition-colors">ชำระแล้ว</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-black text-green-600">{overviewData.billStatusCounts.paid} ห้อง</span>
@@ -1963,7 +2052,7 @@ export default function DashboardClient() {
                                                 <div className="w-6 h-6 rounded-full bg-sky-100 flex items-center justify-center text-sky-600">
                                                     <BellIcon className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-sm font-bold text-gray-700 group-hover:text-sky-600 transition-colors">รอชำระ</span>
+                                                <span className="text-sm font-bold text-gray-900 group-hover:text-sky-600 transition-colors">รอชำระ</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-black text-sky-600">{(overviewData.billStatusCounts.unpaid || 0) + (overviewData.billStatusCounts.waiting_verify || 0)} ห้อง</span>
@@ -1978,7 +2067,7 @@ export default function DashboardClient() {
                                                 <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
                                                     <ExclamationTriangleIcon className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-sm font-bold text-gray-700 group-hover:text-orange-600 transition-colors">ค้างชำระ</span>
+                                                <span className="text-sm font-bold text-gray-900 group-hover:text-orange-600 transition-colors">ค้างชำระ</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-black text-orange-600">{(overviewData.billStatusCounts as any).overdue || 0} ห้อง</span>
@@ -1993,13 +2082,103 @@ export default function DashboardClient() {
                                                 <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
                                                     <ArrowRightOnRectangleIcon className="w-4 h-4" />
                                                 </div>
-                                                <span className="text-sm font-bold text-gray-700 group-hover:text-amber-600 transition-colors">แจ้งออก</span>
+                                                <span className="text-sm font-bold text-gray-900 group-hover:text-amber-600 transition-colors">แจ้งออก</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-black text-amber-600">{(overviewData.billStatusCounts as any).movingOut || 0} ห้อง</span>
                                                 <ChevronRightIcon className="w-4 h-4 text-gray-200 group-hover:text-amber-400 transition-colors" />
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* ── Revenue Graph (Full Width) ── */}
+                                <div className="bg-white rounded-[1.5rem] p-5 border-2 border-gray-50 shadow-sm">
+                                    <h3 className="text-sm font-black text-gray-800 mb-6 flex items-center gap-2">
+                                        <ClockIcon className="w-4 h-4 text-green-500" />
+                                        รายรับรายเดือน (6 เดือนล่าสุด)
+                                    </h3>
+                                    <div className="h-40 flex items-end justify-between gap-3 px-2">
+                                        {overviewData.historicalRevenue.map((data, i) => {
+                                            const maxAmount = Math.max(...overviewData.historicalRevenue.map(h => h.amount), 1);
+                                            const height = (data.amount / maxAmount) * 100;
+                                            return (
+                                                <div key={i} className="flex-1 flex flex-col items-center gap-3 group relative">
+                                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                                                        ฿{data.amount.toLocaleString()}
+                                                    </div>
+                                                    <div className="w-full relative flex items-end justify-center h-full">
+                                                        <div
+                                                            className={`w-full rounded-t-lg transition-all duration-700 ${i === 5 ? 'bg-green-500' : 'bg-gray-100 group-hover:bg-green-200'}`}
+                                                            style={{ height: `${Math.max(height, 5)}%` }}
+                                                        />
+                                                    </div>
+                                                    <span className={`text-[10px] font-black ${i === 5 ? 'text-green-600' : 'text-slate-600'}`}>
+                                                        {data.month}
+                                                    </span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* ── Electricity Usage History (Full Width) ── */}
+                                <div className="bg-white rounded-[1.5rem] p-5 border-2 border-gray-50 shadow-sm">
+                                    <h3 className="text-sm font-black text-gray-800 mb-6 flex items-center gap-2">
+                                        <BoltIcon className="w-4 h-4 text-orange-500" />
+                                        การใช้ไฟฟ้า (หน่วย) (6 เดือนล่าสุด)
+                                    </h3>
+                                    <div className="h-40 flex items-end justify-between gap-3 px-2">
+                                        {overviewData.historicalUtilities.map((data, i) => {
+                                            const maxVal = Math.max(...overviewData.historicalUtilities.map(h => h.electricity), 1);
+                                            const height = (data.electricity / maxVal) * 100;
+                                            return (
+                                                <div key={i} className="flex-1 flex flex-col items-center gap-3 group relative">
+                                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                                                        {data.electricity.toLocaleString()} หน่วย
+                                                    </div>
+                                                    <div className="w-full relative flex items-end justify-center h-full">
+                                                        <div
+                                                            className={`w-full rounded-t-lg transition-all duration-700 ${i === 5 ? 'bg-orange-500' : 'bg-orange-100 group-hover:bg-orange-200'}`}
+                                                            style={{ height: `${Math.max(height, 5)}%` }}
+                                                        />
+                                                    </div>
+                                                    <span className={`text-[10px] font-black ${i === 5 ? 'text-orange-600' : 'text-slate-600'}`}>
+                                                        {data.month}
+                                                    </span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* ── Water Usage History (Full Width) ── */}
+                                <div className="bg-white rounded-[1.5rem] p-5 border-2 border-gray-50 shadow-sm">
+                                    <h3 className="text-sm font-black text-gray-800 mb-6 flex items-center gap-2">
+                                        <ArrowPathIcon className="w-4 h-4 text-teal-500" />
+                                        การใช้น้ำ (หน่วย) (6 เดือนล่าสุด)
+                                    </h3>
+                                    <div className="h-40 flex items-end justify-between gap-3 px-2">
+                                        {overviewData.historicalUtilities.map((data, i) => {
+                                            const maxVal = Math.max(...overviewData.historicalUtilities.map(h => h.water), 1);
+                                            const height = (data.water / maxVal) * 100;
+                                            return (
+                                                <div key={i} className="flex-1 flex flex-col items-center gap-3 group relative">
+                                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                                                        {data.water.toLocaleString()} หน่วย
+                                                    </div>
+                                                    <div className="w-full relative flex items-end justify-center h-full">
+                                                        <div
+                                                            className={`w-full rounded-t-lg transition-all duration-700 ${i === 5 ? 'bg-teal-500' : 'bg-teal-100 group-hover:bg-teal-200'}`}
+                                                            style={{ height: `${Math.max(height, 5)}%` }}
+                                                        />
+                                                    </div>
+                                                    <span className={`text-[10px] font-black ${i === 5 ? 'text-teal-600' : 'text-slate-600'}`}>
+                                                        {data.month}
+                                                    </span>
+                                                </div>
+                                            )
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -2015,8 +2194,8 @@ export default function DashboardClient() {
                                 <h1 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-3">
                                     <span className="text-4xl">🏢</span> สถานะห้องพัก
                                 </h1>
-                                <span className="bg-gray-100 text-gray-400 font-bold text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full border border-gray-100">
-                                    ทั้งหมด {rooms.length} ห้อง
+                                <span className="bg-gray-100 text-black-600 font-bold text-[14px] uppercase tracking-widest px-3 py-1.5 rounded-full border border-gray-100">
+                                    ห้องพักทั้งหมด {rooms.length} ห้อง
                                 </span>
                             </div>
 
@@ -2024,11 +2203,11 @@ export default function DashboardClient() {
                             <div className="space-y-4">
                                 {/* Floor Filter */}
                                 <div className="flex flex-col gap-2">
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">เลือกชั้น</p>
+                                    <p className="text-[11px] font-black text-slate-600 uppercase tracking-widest ml-1">เลือกชั้น</p>
                                     <div className="flex items-center gap-2 flex-wrap pb-2">
                                         <button
                                             onClick={() => setSelectedFloor('all')}
-                                            className={`px-5 py-2.5 rounded-2xl font-black text-xs transition-all whitespace-nowrap border-2 ${selectedFloor === 'all' ? 'bg-green-600 border-green-600 text-white shadow-lg shadow-green-100' : 'bg-white border-gray-100 text-gray-400 hover:border-green-200'}`}
+                                            className={`px-5 py-2.5 rounded-2xl font-black text-xs transition-all whitespace-nowrap border-2 ${selectedFloor === 'all' ? 'bg-green-600 border-green-600 text-white shadow-lg shadow-green-100' : 'bg-white border-gray-100 text-slate-500 hover:border-green-200'}`}
                                         >
                                             ทุกชั้น
                                         </button>
@@ -2046,7 +2225,7 @@ export default function DashboardClient() {
 
                                 {/* Status Filter */}
                                 <div className="flex flex-col gap-2">
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">สถานะห้อง</p>
+                                    <p className="text-[11px] font-black text-slate-600 uppercase tracking-widest ml-1">สถานะห้อง</p>
                                     <div className="flex items-center gap-2 flex-wrap pb-2">
                                         {[
                                             { id: 'all', label: 'ทั้งหมด', color: 'bg-emerald-600 border-emerald-600 shadow-emerald-100' },
@@ -2059,7 +2238,7 @@ export default function DashboardClient() {
                                             <button
                                                 key={status.id}
                                                 onClick={() => setSelectedStatus(status.id)}
-                                                className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all whitespace-nowrap border-2 ${selectedStatus === status.id ? `${status.color} text-white shadow-lg` : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'}`}
+                                                className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all whitespace-nowrap border-2 ${selectedStatus === status.id ? `${status.color} text-white shadow-lg` : 'bg-white border-gray-100 text-slate-500 hover:border-gray-200'}`}
                                             >
                                                 {status.label}
                                             </button>
@@ -2112,7 +2291,7 @@ export default function DashboardClient() {
                                                     <div className="h-8 w-2 bg-green-500 rounded-full shadow-sm shadow-green-100" />
                                                     <h2 className="text-xl font-black text-gray-800 tracking-tight">ชั้น {floor}</h2>
                                                 </div>
-                                                <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+                                                <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
                                                     {filteredRooms.filter(r => r.floor === floor).length} ห้อง
                                                 </span>
                                             </div>
@@ -2198,8 +2377,8 @@ export default function DashboardClient() {
                                                                 </div>
 
                                                                 <div>
-                                                                    <p className="text-[10px] font-black text-gray-400 uppercase leading-none mb-1">ห้องหมายเลข</p>
-                                                                    <h3 className="text-xl font-black text-gray-800 tracking-tight leading-none mb-2">{room.room_number}</h3>
+                                                                    <p className="text-[11px] font-black text-slate-600 uppercase leading-none mb-1">ห้องหมายเลข</p>
+                                                                    <h3 className="text-xl font-black text-gray-900 tracking-tight leading-none mb-2">{room.room_number}</h3>
 
                                                                     {isOccupied && activeTenant && (
                                                                         <div className="space-y-1.5 animate-in fade-in slide-in-from-left-2 duration-300">
@@ -2212,9 +2391,9 @@ export default function DashboardClient() {
                                                                                         </div>
                                                                                     )}
                                                                                 </div>
-                                                                                <span className="text-[12px] font-black text-gray-700 truncate tracking-tight">
+                                                                                <span className="text-[12px] font-black text-gray-900 truncate tracking-tight">
                                                                                     {activeTenant.name}
-                                                                                    {activeTenant.line_user_id && <span className="ml-1 text-[8px] text-green-600 font-bold">(ตรงกัน)</span>}
+                                                                                    {activeTenant.line_user_id && <span className="ml-1 text-[12px] text-green-600 font-bold">(ตรงกัน)</span>}
                                                                                 </span>
                                                                             </div>
                                                                             {activeTenant.phone && (
@@ -2226,7 +2405,7 @@ export default function DashboardClient() {
                                                                                     ) : (
                                                                                         <DevicePhoneMobileIcon className="w-4 h-4 text-gray-400 shrink-0 bg-gray-50 rounded-md p-0.5" />
                                                                                     )}
-                                                                                    <span className={`text-[11px] font-bold tracking-tighter ${activeTenant.line_user_id ? 'text-green-700' : 'text-gray-500'}`}>
+                                                                                    <span className={`text-[11px] font-bold tracking-tighter ${activeTab === 'rooms' && activeTenant.line_user_id ? 'text-green-700' : 'text-slate-700'}`}>
                                                                                         {activeTenant.phone}
                                                                                     </span>
                                                                                 </div>
@@ -2244,7 +2423,7 @@ export default function DashboardClient() {
                                                                 </div>
 
                                                                 <div className="pt-1.5 flex items-center justify-between">
-                                                                    <span className="text-[11px] font-bold text-gray-400">
+                                                                    <span className="text-[13px] font-black text-slate-700">
                                                                         ฿{(room.base_price?.toLocaleString() || '0')}
                                                                     </span>
                                                                     <div className="w-5 h-5 bg-gray-50 rounded-lg flex items-center justify-center text-gray-300 group-hover:bg-green-50 group-hover:text-green-600 transition-colors">
