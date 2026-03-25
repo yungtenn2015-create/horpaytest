@@ -270,8 +270,8 @@ export default function TenantsClient() {
 
                 {/* ── Detail Modal ── */}
                 {selectedTenant && (
-                    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-300">
-                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedTenant(null)} />
+                    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setSelectedTenant(null)} />
 
                         <div className="relative w-full sm:max-w-md bg-white rounded-t-[2.5rem] sm:rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[850px] animate-in slide-in-from-bottom duration-500 ring-1 ring-black/5">
                             {/* Modal Header - Match AddTenant Style but BLUE */}
@@ -324,8 +324,8 @@ export default function TenantsClient() {
                                                 <HomeIcon className="w-6 h-6" />
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">หมายเลขห้องพัก</p>
-                                                <p className="text-xl font-black text-blue-600 tracking-tight">ห้อง {selectedTenant.rooms.room_number}</p>
+                                                <p className="text-xs font-black text-black uppercase tracking-widest mb-1">หมายเลขห้องพัก</p>
+                                                <p className="text-2xl font-black text-black tracking-tight">ห้อง {selectedTenant.rooms.room_number}</p>
                                             </div>
                                         </div>
 
@@ -336,8 +336,8 @@ export default function TenantsClient() {
                                                     <PhoneIcon className="w-6 h-6" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">เบอร์โทรศัพท์</p>
-                                                    <p className="text-lg font-black text-gray-800 tracking-tight">{selectedTenant.phone || 'ไม่ระบุ'}</p>
+                                                    <p className="text-xs font-black text-black uppercase tracking-widest mb-1">เบอร์โทรศัพท์</p>
+                                                    <p className="text-xl font-black text-black tracking-tight">{selectedTenant.phone || 'ไม่ระบุ'}</p>
                                                 </div>
                                             </div>
                                             {selectedTenant.phone && (
@@ -356,8 +356,8 @@ export default function TenantsClient() {
                                                 <BriefcaseIcon className="w-6 h-6 stroke-2" />
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">อาชีพ</p>
-                                                <p className="text-lg font-black text-gray-800 tracking-tight">{selectedTenant.occupation || 'ไม่ระบุ'}</p>
+                                                <p className="text-xs font-black text-black uppercase tracking-widest mb-1">อาชีพ</p>
+                                                <p className="text-xl font-black text-black tracking-tight">{selectedTenant.occupation || 'ไม่ระบุ'}</p>
                                             </div>
                                         </div>
 
@@ -367,8 +367,8 @@ export default function TenantsClient() {
                                                 <MapPinIcon className="w-6 h-6" />
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 mt-1">ที่อยู่ตามบัตรประชาชน</p>
-                                                <p className="text-sm font-bold text-gray-600 leading-relaxed max-w-[280px]">
+                                                <p className="text-xs font-black text-black uppercase tracking-widest mb-2 mt-1">ที่อยู่ตามบัตรประชาชน</p>
+                                                <p className="text-base font-black text-black leading-relaxed max-w-[280px]">
                                                     {selectedTenant.address || 'ไม่ระบุข้อมูล'}
                                                 </p>
                                             </div>
@@ -384,20 +384,20 @@ export default function TenantsClient() {
 
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="p-5 bg-gray-50/80 rounded-3xl border border-gray-100 shadow-inner">
-                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">รถยนต์</p>
-                                            <p className="font-black text-gray-800 text-sm leading-tight lg:text-base">{selectedTenant.car_registration || 'ไม่มี'}</p>
+                                            <p className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5">รถยนต์</p>
+                                            <p className="font-black text-black text-base leading-tight lg:text-lg">{selectedTenant.car_registration || 'ไม่มี'}</p>
                                         </div>
                                         <div className="p-5 bg-gray-50/80 rounded-3xl border border-gray-100 shadow-inner">
-                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">มอเตอร์ไซค์</p>
-                                            <p className="font-black text-gray-800 text-sm leading-tight lg:text-base">{selectedTenant.motorcycle_registration || 'ไม่มี'}</p>
+                                            <p className="text-[10px] font-black text-black uppercase tracking-widest mb-1.5">มอเตอร์ไซค์</p>
+                                            <p className="font-black text-black text-base leading-tight lg:text-lg">{selectedTenant.motorcycle_registration || 'ไม่มี'}</p>
                                         </div>
                                     </div>
 
                                     <div className="p-6 bg-red-50/50 rounded-3xl border border-red-100/50">
-                                        <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                        <p className="text-xs font-black text-red-600 uppercase tracking-widest mb-2 flex items-center gap-2">
                                             <ExclamationTriangleIcon className="w-3 h-3" /> ผู้ติดต่อฉุกเฉิน
                                         </p>
-                                        <p className="text-lg font-black text-gray-800 tracking-tight">{selectedTenant.emergency_contact || 'ไม่ระบุ'}</p>
+                                        <p className="text-xl font-black text-black tracking-tight">{selectedTenant.emergency_contact || 'ไม่ระบุ'}</p>
                                     </div>
                                 </div>
 
@@ -410,23 +410,23 @@ export default function TenantsClient() {
                                     <div className="space-y-4">
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-1.5">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">วันที่เริ่มสัญญา</p>
+                                                <p className="text-xs font-black text-black uppercase tracking-widest ml-1">วันที่เริ่มสัญญา</p>
                                                 <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100 shadow-inner">
                                                     <CalendarDaysIcon className="w-5 h-5 text-blue-500 shrink-0" />
-                                                    <span className="text-sm font-black text-gray-800">{formatThaiDate(selectedTenant.lease_contracts?.[0]?.start_date || selectedTenant.created_at)}</span>
+                                                    <span className="text-base font-black text-black">{formatThaiDate(selectedTenant.lease_contracts?.[0]?.start_date || selectedTenant.created_at)}</span>
                                                 </div>
                                             </div>
                                             <div className="space-y-1.5">
-                                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">วันที่สิ้นสุด</p>
+                                                <p className="text-xs font-black text-black uppercase tracking-widest ml-1">วันที่สิ้นสุด</p>
                                                 <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100 shadow-inner">
                                                     <CalendarDaysIcon className="w-5 h-5 text-red-400 shrink-0" />
-                                                    <span className="text-sm font-black text-gray-800">{selectedTenant.lease_contracts?.[0]?.end_date ? formatThaiDate(selectedTenant.lease_contracts[0].end_date) : '-'}</span>
+                                                    <span className="text-base font-black text-black">{selectedTenant.lease_contracts?.[0]?.end_date ? formatThaiDate(selectedTenant.lease_contracts[0].end_date) : '-'}</span>
                                                 </div>
                                             </div>
                                         </div>
 
                                         {selectedTenant.lease_contracts?.[0]?.start_date && selectedTenant.lease_contracts?.[0]?.end_date && (
-                                            <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 text-[11px] font-black rounded-xl border border-blue-100 uppercase tracking-widest shadow-sm self-start inline-flex">
+                                            <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 text-xs font-black rounded-xl border border-blue-100 uppercase tracking-widest shadow-sm self-start inline-flex">
                                                 ระยะเวลาสัญญา: {calculateDuration(selectedTenant.lease_contracts[0].start_date, selectedTenant.lease_contracts[0].end_date)}
                                             </div>
                                         )}
@@ -434,14 +434,14 @@ export default function TenantsClient() {
                                         {/* Financial Summary */}
                                         <div className="grid grid-cols-2 gap-4 pt-2">
                                             <div className="p-6 bg-emerald-50/50 rounded-3xl border border-emerald-100/50">
-                                                <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">ค่าเช่าหลัก</p>
-                                                <p className="text-xl font-black text-gray-800">
+                                                <p className="text-xs font-black text-emerald-600 uppercase tracking-widest mb-1">ค่าเช่าหลัก</p>
+                                                <p className="text-2xl font-black text-black">
                                                     ฿{(selectedTenant.lease_contracts?.[0]?.rent_price || selectedTenant.rooms.base_price).toLocaleString()}
                                                 </p>
                                             </div>
                                             <div className="p-6 bg-blue-50/50 rounded-3xl border border-blue-100/50">
-                                                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">เงินมัดจำ</p>
-                                                <p className="text-xl font-black text-gray-800">
+                                                <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">เงินมัดจำ</p>
+                                                <p className="text-2xl font-black text-black">
                                                     ฿{(selectedTenant.lease_contracts?.[0]?.deposit_amount || 0).toLocaleString()}
                                                 </p>
                                             </div>
@@ -453,17 +453,10 @@ export default function TenantsClient() {
                             {/* Modal Footer */}
                             <div className="px-8 py-6 bg-gray-50 border-t border-gray-100 shrink-0 flex flex-col gap-3">
                                 <button
-                                    onClick={() => router.push(`/dashboard/tenants/edit/${selectedTenant.id}`)}
-                                    className="w-full bg-white border-2 border-blue-500 text-blue-600 font-black py-4 rounded-2xl transition-all active:scale-95 shadow-sm flex items-center justify-center gap-2 hover:bg-blue-50 text-base"
-                                >
-                                    <PencilSquareIcon className="w-6 h-6" />
-                                    แก้ไขข้อมูลผู้เช่า
-                                </button>
-                                <button
                                     onClick={() => setSelectedTenant(null)}
-                                    className="w-full py-4 text-gray-400 font-black text-xs uppercase tracking-[0.2em] hover:text-gray-600 transition-colors"
+                                    className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl transition-all active:scale-95 shadow-xl shadow-blue-500/20 text-lg"
                                 >
-                                    ปิดหน้าต่างข้อมูล
+                                    ปิดหน้าต่าง
                                 </button>
                             </div>
                         </div>

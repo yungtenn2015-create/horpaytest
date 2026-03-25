@@ -473,6 +473,23 @@ export default function DashboardClient() {
                     .update(payload)
                     .eq('id', editingContract.id)
                 if (error) throw error
+
+                // NEW: Also update active tenant data that links to this contract
+                const tenantSyncPayload = {
+                    name: contractFormData.name,
+                    phone: contractFormData.phone,
+                    emergency_contact: contractFormData.emergency_contact || null,
+                    occupation: contractFormData.occupation || null,
+                    car_registration: contractFormData.car_registration || null,
+                    motorcycle_registration: contractFormData.motorcycle_registration || null,
+                    address: contractFormData.address || null
+                }
+
+                await supabase
+                    .from('tenants')
+                    .update(tenantSyncPayload)
+                    .eq('tenant_contract_id', editingContract.id)
+                    .eq('status', 'active') // Only update active ones to be safe
             } else {
                 const { error } = await supabase
                     .from('tenant_contracts')
@@ -1438,7 +1455,7 @@ export default function DashboardClient() {
                                 {isSubmittingContract ? (
                                     <ArrowPathIcon className="w-6 h-6 animate-spin" />
                                 ) : (
-                                    <><PlusIcon className="w-6 h-6 stroke-[3]" />{editingContract ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลสัญญา'}</>
+                                    <>{editingContract ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลสัญญา'}</>
                                 )}
                             </button>
                         </div>
@@ -1495,8 +1512,8 @@ export default function DashboardClient() {
 
         return (
             <>
-                <div 
-                    className="fixed inset-0 z-[105] bg-black/5" 
+                <div
+                    className="fixed inset-0 z-[105] bg-black/5"
                     onClick={() => setIsNotificationsOpen(false)}
                 />
                 <div className="absolute right-0 top-full mt-4 w-[320px] bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-gray-100 z-[110] overflow-hidden animate-in fade-in zoom-in-95 duration-300 origin-top-right">
@@ -1511,7 +1528,7 @@ export default function DashboardClient() {
                             </span>
                         )}
                     </div>
-                    
+
                     <div className="max-h-[400px] overflow-y-auto px-2 py-2 custom-scrollbar">
                         {notifications.length === 0 ? (
                             <div className="py-12 flex flex-col items-center justify-center text-center px-6">
@@ -1532,11 +1549,10 @@ export default function DashboardClient() {
                                         }}
                                         className="w-full text-left p-4 rounded-2xl hover:bg-gray-50 transition-all group flex gap-4"
                                     >
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border-2 border-white shadow-sm ${
-                                            notif.type === 'verify' ? 'bg-sky-50 text-sky-500' : 
-                                            notif.type === 'overdue' ? 'bg-orange-50 text-orange-500' : 
-                                            'bg-amber-50 text-amber-500'
-                                        }`}>
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border-2 border-white shadow-sm ${notif.type === 'verify' ? 'bg-sky-50 text-sky-500' :
+                                                notif.type === 'overdue' ? 'bg-orange-50 text-orange-500' :
+                                                    'bg-amber-50 text-amber-500'
+                                            }`}>
                                             {notif.type === 'verify' && <ClockIcon className="w-5 h-5 stroke-[2.5]" />}
                                             {notif.type === 'overdue' && <ExclamationTriangleIcon className="w-5 h-5 stroke-[2.5]" />}
                                             {notif.type === 'move_out' && <ArrowRightOnRectangleIcon className="w-5 h-5 stroke-[2.5]" />}
@@ -1552,7 +1568,7 @@ export default function DashboardClient() {
                     </div>
 
                     <div className="p-4 bg-gray-50/50 border-t border-gray-100 mt-auto">
-                        <button 
+                        <button
                             onClick={() => { setIsNotificationsOpen(false); router.push('/dashboard/billing'); }}
                             className="w-full h-12 bg-white border-2 border-gray-100 hover:border-primary/30 rounded-xl text-xs font-black text-gray-600 hover:text-primary transition-all flex items-center justify-center gap-2 shadow-sm"
                         >
@@ -1592,19 +1608,18 @@ export default function DashboardClient() {
                             </div>
 
                             {/* Header Content */}
-                            <div className="relative z-50 pt-12 pb-14 px-5">
+                            <div className="relative z-50 pt-10 pb-12 px-5">
                                 {/* Header */}
-                                <div className="relative z-20 flex justify-between items-center mb-10 px-1">
+                                <div className="relative z-20 flex justify-between items-center mb-6 px-1">
                                     <span className="text-xl sm:text-2xl font-black tracking-tight text-white">HORPAY</span>
                                     <div className="flex items-center gap-2.5">
                                         <div className="relative">
-                                            <button 
+                                            <button
                                                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                                                className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all active:scale-95 border shadow-sm backdrop-blur-md ${
-                                                    isNotificationsOpen 
-                                                        ? 'bg-white text-primary border-white' 
+                                                className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all active:scale-95 border shadow-sm backdrop-blur-md ${isNotificationsOpen
+                                                        ? 'bg-white text-primary border-white'
                                                         : 'bg-white/20 hover:bg-white/30 text-white border-white/20'
-                                                }`}
+                                                    }`}
                                             >
                                                 <span className="material-symbols-outlined text-[26px]">notifications</span>
                                                 {(waitingVerifyRoomIds.size + overdueRoomIds.size + (movingOutRoomIds.size)) > 0 && (
