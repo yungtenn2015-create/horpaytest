@@ -1082,7 +1082,7 @@ export default function DashboardClient() {
                 <div className="px-6 pt-12 mb-6 flex items-end justify-between">
                     <div>
                         <h1 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-3">
-                            <span className="text-4xl">📄</span> บันทึกสัญญา
+                            <span className="text-2xl">📄</span> บันทึกสัญญา
                         </h1>
                         <p className="text-black-400 font-bold text-sm mt-1">จัดการข้อมูลผู้เช่าและสัญญาเบื้องต้น</p>
                     </div>
@@ -1099,7 +1099,7 @@ export default function DashboardClient() {
                         }}
                         className="h-14 px-6 bg-green-600 hover:bg-green-700 text-white rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-green-100/50 transition-all active:scale-95 group font-black"
                     >
-                        <PlusIcon className="w-6 h-6 stroke-[3]" />
+                        <PlusIcon className="w-3 h-3 stroke-[3]" />
                         เพิ่ม
                     </button>
                 </div>
@@ -1198,14 +1198,6 @@ export default function DashboardClient() {
                                     >
                                         <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 ${contract.status === 'moved_in' ? 'bg-blue-50/50' : 'bg-green-50/50'}`} />
 
-                                        {/* Status Badge */}
-                                        <div className="absolute top-4 right-16 z-20">
-                                            {contract.status === 'moved_in' && (
-                                                <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black border border-blue-100 uppercase tracking-widest">
-                                                    พักอยู่ปัจจุบัน
-                                                </span>
-                                            )}
-                                        </div>
 
                                         <div className="flex items-start justify-between relative z-10">
                                             <div className="flex items-start gap-4">
@@ -1216,7 +1208,7 @@ export default function DashboardClient() {
                                                     <UserIcon className="w-6 h-6" />
                                                 </div>
                                                 <div>
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center flex-wrap gap-2">
                                                         <h3 className={`text-lg font-black text-gray-800 tracking-tight transition-colors ${contract.status === 'moved_in' ? 'group-hover:text-blue-700' : 'group-hover:text-green-700'}`}>{contract.name}</h3>
                                                         {(contract as any).tenants?.[0]?.rooms?.room_number && (
                                                             <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border uppercase tracking-widest ${contract.status === 'moved_in'
@@ -1224,6 +1216,11 @@ export default function DashboardClient() {
                                                                 : 'bg-green-100 text-green-700 border-green-200'
                                                                 }`}>
                                                                 ห้อง {(contract as any).tenants[0].rooms.room_number}
+                                                            </span>
+                                                        )}
+                                                        {contract.status === 'moved_in' && (
+                                                            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px] font-black border border-blue-100 uppercase tracking-widest">
+                                                                พักอยู่ปัจจุบัน
                                                             </span>
                                                         )}
                                                     </div>
@@ -1832,7 +1829,7 @@ export default function DashboardClient() {
                                     { icon: 'grid_view', label: 'ห้องทั้งหมด', value: stats.total, color: 'bg-emerald-50 text-emerald-500' },
                                     { icon: 'home', label: 'ห้องว่าง', value: stats.vacant, color: 'bg-green-50 text-green-500' },
                                     { icon: 'group', label: 'มีคนพัก', value: stats.occupied, color: 'bg-blue-50 text-blue-500' },
-                                    { icon: 'payments', label: 'รอชำระ', value: (overviewData.billStatusCounts?.unpaid || 0) + (overviewData.billStatusCounts?.waiting_verify || 0), color: 'bg-sky-50 text-sky-500' },
+                                    { icon: 'payments', label: 'ค้างชำระ', value: (overviewData.billStatusCounts?.unpaid || 0) + (overviewData.billStatusCounts?.waiting_verify || 0), color: 'bg-sky-50 text-sky-500' },
 
                                 ].map((item) => (
                                     <div key={item.label} className="bg-white p-5 rounded-3xl shadow-sm flex items-center gap-4 transform hover:-translate-y-1 transition-all duration-300">
@@ -2190,11 +2187,11 @@ export default function DashboardClient() {
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto h-full px-6 pt-12 pb-32">
                         <div className="flex flex-col gap-6 mb-8">
                             <div className="flex items-center justify-between">
-                                <h1 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-3">
-                                    <span className="text-4xl">🏢</span> สถานะห้องพัก
+                                <h1 className="text-2xl font-black text-gray-800 tracking-tight flex items-center gap-3">
+                                    <span className="text-2xl">🏢</span> สถานะห้องพัก
                                 </h1>
                                 <span className="bg-gray-100 text-black-600 font-bold text-[14px] uppercase tracking-widest px-3 py-1.5 rounded-full border border-gray-100">
-                                    ห้องพักทั้งหมด {rooms.length} ห้อง
+                                    ทั้งหมด {rooms.length} ห้อง
                                 </span>
                             </div>
 
@@ -2377,7 +2374,12 @@ export default function DashboardClient() {
 
                                                                 <div>
                                                                     <p className="text-[11px] font-black text-slate-600 uppercase leading-none mb-1">ห้องหมายเลข</p>
-                                                                    <h3 className="text-xl font-black text-gray-900 tracking-tight leading-none mb-2">{room.room_number}</h3>
+                                                                    <h3 className="text-xl font-black text-gray-900 tracking-tight leading-none mb-2">
+                                                                        {room.room_number}
+                                                                        {isOccupied && activeTenant?.line_user_id && (
+                                                                            <span className="ml-2 text-sm text-green-600 font-bold">(ตรงกัน)</span>
+                                                                        )}
+                                                                    </h3>
 
                                                                     {isOccupied && activeTenant && (
                                                                         <div className="space-y-1.5 animate-in fade-in slide-in-from-left-2 duration-300">
@@ -2392,7 +2394,6 @@ export default function DashboardClient() {
                                                                                 </div>
                                                                                 <span className="text-[12px] font-black text-gray-900 truncate tracking-tight">
                                                                                     {activeTenant.name}
-                                                                                    {activeTenant.line_user_id && <span className="ml-1 text-[12px] text-green-600 font-bold">(ตรงกัน)</span>}
                                                                                 </span>
                                                                             </div>
                                                                             {activeTenant.phone && (
