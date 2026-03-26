@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import sharp from 'sharp';
 
 // Initialize Supabase Admin (since webhook needs to bypass RLS to write line_user_id)
 export async function POST(req: Request) {
@@ -85,7 +86,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
 
   if (type === 'follow') {
     // Safer approach: do NOT auto-link owner on follow.
-    // Everyone gets the same welcome, then owner can claim via OWNER-XXXXXX (generated from dashboard).
+    // Show only tenant guidance here (owner onboarding handled separately by manual guide).
     const welcomeFlex = {
       type: 'bubble',
       header: {
@@ -141,26 +142,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
                 color: '#6b7280',
                 margin: 'sm'
               },
-              {
-                type: 'separator',
-                margin: 'md'
-              },
-              {
-                type: 'text',
-                text: 'เจ้าของหอ: พิมพ์ OWNER-XXXXXX',
-                weight: 'bold',
-                size: 'sm',
-                color: '#4b5563',
-                margin: 'md'
-              },
-              {
-                type: 'text',
-                text: 'รหัสยืนยันสร้างได้ที่หน้า Settings > การเชื่อมต่อ LINE',
-                size: 'xs',
-                color: '#6b7280',
-                margin: 'sm',
-                wrap: true
-              }
+              // Owner instructions removed intentionally
             ]
           }
         ]
@@ -229,17 +211,17 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
         const isExpired = !expiresAt || isNaN(expiresAt.getTime()) || expiresAt.getTime() < Date.now();
 
         if (!config.owner_claim_code) {
-          await replyText(replyToken, config.access_token, `ยังไม่มีรหัสยืนยันในระบบ กรุณาให้แอดมินสร้างรหัสที่หน้า Settings > การเชื่อมต่อ LINE ก่อนครับ`);
+          await replyText(replyToken, config.access_token, `ยังไม่สามารถดำเนินการได้ในขณะนี้ กรุณาติดต่อผู้ดูแลหอพักครับ`);
           return;
         }
 
         if (isExpired) {
-          await replyText(replyToken, config.access_token, `รหัสยืนยันหมดอายุแล้ว กรุณาให้แอดมินสร้างรหัสใหม่ในหน้า Settings > การเชื่อมต่อ LINE ครับ`);
+          await replyText(replyToken, config.access_token, `ยังไม่สามารถดำเนินการได้ในขณะนี้ กรุณาติดต่อผู้ดูแลหอพักครับ`);
           return;
         }
 
         if (String(config.owner_claim_code) !== code) {
-          await replyText(replyToken, config.access_token, `รหัสยืนยันไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง (รูปแบบ: OWNER-123456)`);
+          await replyText(replyToken, config.access_token, `ข้อมูลไม่ถูกต้อง กรุณาติดต่อผู้ดูแลหอพักครับ`);
           return;
         }
 
@@ -335,12 +317,10 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
       }
       // If user is trying to claim owner but format is wrong, reply with a specific hint.
       if (/owner/i.test(normalizedOwnerText)) {
-        const digitsAny = normalizedOwnerText.match(/\p{Nd}/gu) || []
-        const tail6 = digitsAny.slice(-6).join('')
         await replyText(
           replyToken,
           config.access_token,
-          `รูปแบบ Owner Code ไม่ถูกต้องครับ\n\nตัวอย่างที่ถูกต้อง:\n- owner-123456\n- owner123456\n\nหมายเหตุ: ต้องมีเลข 6 หลักเท่านั้น\n(ที่ระบบอ่านเจอเลขท้ายสุด ${digitsAny.length} ตัว: ${tail6 || '-'})`
+          `ยังไม่สามารถดำเนินการได้ในขณะนี้ กรุณาติดต่อผู้ดูแลหอพักครับ`
         );
         return;
       }
@@ -560,12 +540,6 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
                     color: '#78350f',
                     margin: 'xs'
                   }
-                  ,
-                  {
-                    type: 'separator',
-                    margin: 'md'
-                  },
-              
                 ]
               }
             ]
@@ -575,15 +549,355 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
       }
     }
     else if (event.message.type === 'image') {
-      // User sent a slip/image
-      console.log('User sent an image/slip. No auto-reply as per owner request.');
-      // The owner will confirm later via the dashboard
+      // User sent a slip/image -> store (compressed) then notify owner with approve/reject buttons.
+      try {
+        const messageId = event.message.id;
+        if (!messageId) {
+          await replyText(replyToken, config.access_token, 'ไม่พบข้อมูลรูปภาพ กรุณาลองใหม่อีกครั้ง');
+          return;
+        }
+
+        // 1) Find tenant by LINE user id (must be linked already)
+        const { data: tenant } = await supabaseAdmin
+          .from('tenants')
+          .select('id, name, room_id, status')
+          .eq('line_user_id', lineUserId)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (!tenant?.id) {
+          await replyText(
+            replyToken,
+            config.access_token,
+            'ยังไม่พบการลงทะเบียนห้องพักของคุณครับ\nกรุณาพิมพ์: เลขห้อง-เบอร์โทรศัพท์ (เช่น 101-0812345678)'
+          );
+          return;
+        }
+
+        // 2) Find latest bill for this tenant/room that is not paid/cancelled
+        const { data: bill } = await supabaseAdmin
+          .from('bills')
+          .select('id, status, total_amount, billing_month, room_id, tenant_id, rooms:room_id(room_number, dorm_id)')
+          .eq('tenant_id', tenant.id)
+          .neq('status', 'paid')
+          .neq('status', 'cancelled')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!bill?.id) {
+          await replyText(replyToken, config.access_token, 'ไม่พบบิลที่ต้องตรวจสอบในระบบครับ');
+          return;
+        }
+
+        // 3) Download image from LINE
+        const contentRes = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+          headers: { Authorization: `Bearer ${config.access_token}` }
+        });
+
+        if (!contentRes.ok) {
+          const errText = await contentRes.text().catch(() => '');
+          console.error('LINE content download failed:', contentRes.status, errText);
+          await replyText(replyToken, config.access_token, 'ดาวน์โหลดรูปจาก LINE ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+          return;
+        }
+
+        const inputBuffer = Buffer.from(await contentRes.arrayBuffer());
+
+        // 4) Compress / resize to save storage
+        const compressed = await sharp(inputBuffer)
+          .rotate()
+          .resize({ width: 1280, withoutEnlargement: true })
+          .webp({ quality: 75 })
+          .toBuffer();
+
+        // 5) Upload to Supabase Storage (bucket: slips)
+        const filePath = `${bill.id}/${Date.now()}.webp`;
+        const upload = await supabaseAdmin.storage
+          .from('slips')
+          .upload(filePath, compressed, { contentType: 'image/webp', upsert: true });
+
+        if (upload.error) {
+          console.error('Supabase upload error:', upload.error);
+          await replyText(replyToken, config.access_token, 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+          return;
+        }
+
+        const { data: publicUrlData } = supabaseAdmin.storage.from('slips').getPublicUrl(filePath);
+        const slipUrl = publicUrlData?.publicUrl || '';
+
+        // 6) Record payment + set bill waiting_verify
+        await supabaseAdmin.from('payments').insert({
+          bill_id: bill.id,
+          amount: Number(bill.total_amount) || 0,
+          method: 'transfer',
+          slip_url: slipUrl,
+          status: 'pending'
+        });
+
+        await supabaseAdmin.from('bills').update({ status: 'waiting_verify' }).eq('id', bill.id);
+
+        // 7) Notify owner (push flex with approve/reject)
+        if (config.owner_line_user_id) {
+          const roomNumber = (bill as any).rooms?.room_number || '-';
+          const billingMonth = bill.billing_month
+            ? new Date(bill.billing_month).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
+            : '-';
+          const totalAmount = Number(bill.total_amount) || 0;
+
+          const ownerFlex = {
+            type: 'flex',
+            altText: `ตรวจสลิป ห้อง ${roomNumber} (${tenant.name || 'ผู้เช่า'})`,
+            contents: {
+              type: 'bubble',
+              header: {
+                type: 'box',
+                layout: 'vertical',
+                backgroundColor: '#10B981',
+                paddingAll: '18px',
+                contents: [
+                  { type: 'text', text: 'มีสลิปโอนเงินเข้ามา', color: '#ECFDF5', size: 'sm', weight: 'bold' },
+                  { type: 'text', text: `ห้อง ${roomNumber}`, color: '#FFFFFF', size: 'xl', weight: 'bold', margin: '4px' }
+                ]
+              },
+              body: {
+                type: 'box',
+                layout: 'vertical',
+                paddingAll: '18px',
+                spacing: 'md',
+                contents: [
+                  { type: 'text', text: tenant.name || 'ผู้เช่า', size: 'md', weight: 'bold', color: '#111827' },
+                  { type: 'text', text: `รอบบิล: ${billingMonth}`, size: 'sm', color: '#6B7280' },
+                  {
+                    type: 'box',
+                    layout: 'horizontal',
+                    contents: [
+                      { type: 'text', text: 'ยอดชำระ', size: 'sm', color: '#6B7280', flex: 4 },
+                      { type: 'text', text: `฿${totalAmount.toLocaleString()}`, size: 'sm', weight: 'bold', color: '#10B981', align: 'end', flex: 6 }
+                    ]
+                  },
+                  {
+                    type: 'button',
+                    style: 'link',
+                    height: 'sm',
+                    action: { type: 'uri', label: 'เปิดดูสลิป', uri: slipUrl }
+                  }
+                ]
+              },
+              footer: {
+                type: 'box',
+                layout: 'horizontal',
+                spacing: 'sm',
+                contents: [
+                  {
+                    type: 'button',
+                    style: 'primary',
+                    color: '#10B981',
+                    action: { type: 'postback', label: 'อนุมัติ', data: `action=approve&billId=${bill.id}` }
+                  },
+                  {
+                    type: 'button',
+                    style: 'secondary',
+                    action: { type: 'postback', label: 'ปฏิเสธ', data: `action=reject&billId=${bill.id}` }
+                  }
+                ]
+              }
+            }
+          };
+
+          await fetch('https://api.line.me/v2/bot/message/push', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${config.access_token}`
+            },
+            body: JSON.stringify({
+              to: config.owner_line_user_id,
+              messages: [ownerFlex]
+            })
+          });
+        }
+
+        // 8) Acknowledge tenant
+        const tenantAckFlex = {
+          type: 'bubble',
+          header: {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#10B981',
+            paddingAll: '16px',
+            contents: [
+              { type: 'text', text: 'รับสลิปเรียบร้อย ✅', color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' }
+            ]
+          },
+          body: {
+            type: 'box',
+            layout: 'vertical',
+            paddingAll: '16px',
+            contents: [
+              { type: 'text', text: 'กำลังรอเจ้าของหอตรวจสอบ', color: '#065F46', weight: 'bold', size: 'sm', align: 'center', wrap: true }
+            ]
+          }
+        };
+
+        await replyFlex(replyToken, config.access_token, 'รับสลิปเรียบร้อย', tenantAckFlex);
+        return;
+      } catch (err: unknown) {
+        console.error('Slip handling error:', err);
+        await replyText(replyToken, config.access_token, 'เกิดข้อผิดพลาดในการรับสลิป กรุณาลองใหม่อีกครั้ง');
+        return;
+      }
     }
   }
 
   // Phase 6: Postback Handling (Payment Approval)
   if (type === 'postback') {
-    // Logic will be added in Phase 6
+    try {
+      const dataStr = String(event?.postback?.data || '')
+      const params = new URLSearchParams(dataStr)
+      const action = params.get('action')
+      const billId = params.get('billId')
+
+      if (!action || !billId) {
+        await replyText(replyToken, config.access_token, 'ข้อมูลปุ่มไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง')
+        return
+      }
+
+      // Only allow owner to approve/reject
+      if (!config.owner_line_user_id || config.owner_line_user_id !== lineUserId) {
+        await replyText(replyToken, config.access_token, 'คุณไม่มีสิทธิ์ทำรายการนี้')
+        return
+      }
+
+      // Fetch bill & tenant line id
+      const { data: bill } = await supabaseAdmin
+        .from('bills')
+        .select('id, status, rooms:room_id(dorm_id, room_number), tenants:tenant_id(name, line_user_id), billing_month, total_amount')
+        .eq('id', billId)
+        .maybeSingle()
+
+      if (!bill) {
+        await replyText(replyToken, config.access_token, 'ไม่พบบิลในระบบ')
+        return
+      }
+
+      if (action === 'approve') {
+        // Mark latest payment as approved (if exists) and bill as paid
+        const { data: payment } = await supabaseAdmin
+          .from('payments')
+          .select('id')
+          .eq('bill_id', billId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (payment?.id) {
+          await supabaseAdmin.from('payments').update({ status: 'approved' }).eq('id', payment.id)
+        }
+        await supabaseAdmin.from('bills').update({ status: 'paid' }).eq('id', billId)
+
+        await replyText(replyToken, config.access_token, 'อนุมัติเรียบร้อย ✅')
+
+        // Notify tenant via existing confirm-payment route (best-effort)
+        try {
+          const dormId = (bill as any).rooms?.dorm_id
+          const { data: dormConfig } = await supabaseAdmin
+            .from('line_oa_configs')
+            .select('access_token')
+            .eq('dorm_id', dormId)
+            .maybeSingle()
+
+          if (dormConfig?.access_token && (bill as any).tenants?.line_user_id) {
+            // Reuse the same flex format in confirm-payment route by calling it internally is not trivial here,
+            // so we push a simple confirmation flex directly.
+            const totalAmount = Number((bill as any).total_amount) || 0
+            const roomNumber = (bill as any).rooms?.room_number || '-'
+            const tenantName = (bill as any).tenants?.name || 'ผู้เช่า'
+            const billingMonth = (bill as any).billing_month
+              ? new Date((bill as any).billing_month).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })
+              : '-'
+
+            const tenantFlex = {
+              type: 'flex',
+              altText: 'ชำระเงินเรียบร้อยแล้ว',
+              contents: {
+                type: 'bubble',
+                header: {
+                  type: 'box',
+                  layout: 'vertical',
+                  backgroundColor: '#10B981',
+                  paddingAll: '18px',
+                  contents: [
+                    { type: 'text', text: 'ชำระเงินเรียบร้อยแล้ว', color: '#FFFFFF', weight: 'bold', size: 'xl', align: 'center' }
+                  ]
+                },
+                body: {
+                  type: 'box',
+                  layout: 'vertical',
+                  paddingAll: '18px',
+                  spacing: 'sm',
+                  contents: [
+                    { type: 'text', text: tenantName, weight: 'bold', size: 'lg', color: '#111827', align: 'center' },
+                    { type: 'text', text: `ห้อง ${roomNumber} • ${billingMonth}`, size: 'sm', color: '#6B7280', align: 'center', wrap: true },
+                    { type: 'separator', margin: 'md' },
+                    {
+                      type: 'box',
+                      layout: 'horizontal',
+                      margin: 'md',
+                      contents: [
+                        { type: 'text', text: 'จำนวนเงินที่ได้รับ', size: 'sm', color: '#111827', weight: 'bold', flex: 6 },
+                        { type: 'text', text: `฿${totalAmount.toLocaleString()}`, size: 'sm', color: '#10B981', weight: 'bold', align: 'end', flex: 4 }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+
+            await fetch('https://api.line.me/v2/bot/message/push', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${dormConfig.access_token}`
+              },
+              body: JSON.stringify({
+                to: (bill as any).tenants.line_user_id,
+                messages: [tenantFlex]
+              })
+            })
+          }
+        } catch (e) {
+          console.log('Tenant notify failed (ignored):', e)
+        }
+
+        return
+      }
+
+      if (action === 'reject') {
+        const { data: payment } = await supabaseAdmin
+          .from('payments')
+          .select('id')
+          .eq('bill_id', billId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (payment?.id) {
+          await supabaseAdmin.from('payments').update({ status: 'rejected' }).eq('id', payment.id)
+        }
+        await supabaseAdmin.from('bills').update({ status: 'unpaid' }).eq('id', billId)
+
+        await replyText(replyToken, config.access_token, 'ปฏิเสธเรียบร้อย ❌')
+        return
+      }
+
+      await replyText(replyToken, config.access_token, 'คำสั่งไม่ถูกต้อง')
+      return
+    } catch (err) {
+      console.error('Postback handler error:', err)
+      await replyText(replyToken, config.access_token, 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')
+      return
+    }
   }
 }
 

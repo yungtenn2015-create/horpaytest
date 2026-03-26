@@ -592,7 +592,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                                                     ใช้รหัสเพื่อผูกเจ้าของให้ถูกคน
                                                 </p>
                                                 <p className="text-[11px] font-bold text-gray-400 leading-relaxed">
-                                                    ให้เจ้าของหอเปิด LINE ที่แอด OA นี้ แล้วพิมพ์: <span className="font-black text-gray-600">OWNER-XXXXXX</span>
+                                                    ให้เจ้าของหอเปิด LINE ที่แอด OA นี้ แล้วพิมพ์: <span className="font-black text-gray-600">owner-xxxxxx</span>
                                                 </p>
                                             </div>
                                             <button
@@ -619,10 +619,10 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                                             <div className="flex-1">
                                                 <div className={`h-12 rounded-2xl px-4 flex items-center justify-between border-2 ${ownerClaim.code ? (ownerClaimStatus.isExpired ? 'bg-amber-50 border-amber-100' : 'bg-gray-50 border-gray-100') : 'bg-gray-50 border-gray-100'}`}>
                                                     <span className={`font-mono text-[13px] font-black ${ownerClaim.code ? 'text-gray-800' : 'text-gray-400'}`}>
-                                                        {ownerClaim.code ? `OWNER-${ownerClaim.code}` : 'ยังไม่มีรหัส'}
+                                                        {ownerClaim.code ? `owner-${ownerClaim.code}` : 'ยังไม่มีรหัส'}
                                                     </span>
                                                     <button
-                                                        onClick={() => ownerClaim.code && copyToClipboard(`OWNER-${ownerClaim.code}`)}
+                                                        onClick={() => ownerClaim.code && copyToClipboard(`owner-${ownerClaim.code}`)}
                                                         disabled={!ownerClaim.code}
                                                         className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-all active:scale-90 disabled:opacity-50"
                                                     >
