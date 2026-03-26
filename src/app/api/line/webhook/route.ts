@@ -557,19 +557,33 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
           return;
         }
 
-        // 1) Find tenant by LINE user id (must be linked already)
-        const { data: tenant } = await supabaseAdmin
+        // 1) Find tenant by LINE user id (linked via text registration).
+        // Do not strictly require status='active' because during testing it might be pending.
+        const { data: tenantsByLine } = await supabaseAdmin
           .from('tenants')
-          .select('id, name, room_id, status')
+          .select('id, name, room_id, status, created_at')
           .eq('line_user_id', lineUserId)
-          .eq('status', 'active')
-          .maybeSingle();
+          .order('created_at', { ascending: false });
+
+        const tenant =
+          (tenantsByLine || []).find((t: any) => t.status === 'active') ||
+          (tenantsByLine || [])[0] ||
+          null;
 
         if (!tenant?.id) {
           await replyText(
             replyToken,
             config.access_token,
             'ยังไม่พบการลงทะเบียนห้องพักของคุณครับ\nกรุณาพิมพ์: เลขห้อง-เบอร์โทรศัพท์ (เช่น 101-0812345678)'
+          );
+          return;
+        }
+
+        if (tenant.status !== 'active') {
+          await replyText(
+            replyToken,
+            config.access_token,
+            `บัญชีนี้ผูกห้องพักไว้แล้ว แต่สถานะยังไม่พร้อมรับสลิป (สถานะ: ${tenant.status})\nกรุณาให้เจ้าของหออัปเดตสถานะผู้เช่าเป็น “active” ก่อนครับ`
           );
           return;
         }
