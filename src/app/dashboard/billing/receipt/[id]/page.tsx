@@ -69,6 +69,20 @@ export default function ReceiptPage() {
                 }
                 setBillStatus(bill.status)
 
+                // 1.1 Fetch snapshot bill items (extra services)
+                // Fallback safely when table doesn't exist yet (migration not applied).
+                let billItems: any[] | null = null
+                try {
+                    const { data } = await supabase
+                        .from('bill_items')
+                        .select('name, amount')
+                        .eq('bill_id', bill.id)
+                        .order('created_at', { ascending: true })
+                    billItems = data || null
+                } catch (e) {
+                    billItems = null
+                }
+
                 // 2. Fetch Slip from payments table
                 const { data: payment } = await supabase
                     .from('payments')
@@ -153,8 +167,19 @@ export default function ReceiptPage() {
                     })
                 }
 
-                if (bill.other_amount > 0) {
-                    items.push({ name: 'ค่าใช้จ่ายอื่นๆ', amount: Number(bill.other_amount) })
+                // IMPORTANT: Issued receipts should be a snapshot.
+                // Use bill.other_amount directly so future settings changes don't mutate old receipts.
+                if (Number(bill.other_amount) > 0) {
+                    if (billItems && billItems.length > 0) {
+                        billItems.forEach((it: any) => {
+                            const name = String(it?.name || '').trim()
+                            const amt = Number(it?.amount) || 0
+                            if (!name || amt <= 0) return
+                            items.push({ name, amount: amt })
+                        })
+                    } else {
+                        items.push({ name: 'ค่าใช้จ่ายอื่นๆ', amount: Number(bill.other_amount) })
+                    }
                 }
 
                 // 7. Format Date Strings

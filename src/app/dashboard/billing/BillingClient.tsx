@@ -30,6 +30,17 @@ interface Room {
     base_price: number;
 }
 
+interface DormServiceItem {
+    id: string
+    name: string
+    price: number
+}
+
+interface BillItemRow {
+    name: string
+    amount: number
+}
+
 export default function BillingClient() {
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -56,6 +67,7 @@ export default function BillingClient() {
     const [filterLineStatus, setFilterLineStatus] = useState<'all' | 'linked' | 'unlinked'>('all')
     const [filterWorkingStatus, setFilterWorkingStatus] = useState<'all' | 'pending_meter' | 'ready' | 'issued'>('all')
     const [dormSettings, setDormSettings] = useState<any>(null)
+    const [dormServices, setDormServices] = useState<DormServiceItem[]>([])
     const [showPreview, setShowPreview] = useState(false)
     const [previewData, setPreviewData] = useState<any>(null)
 
@@ -119,6 +131,19 @@ export default function BillingClient() {
                 setDueDay(settingsData.billing_due_day || 5)
             }
 
+            // 1.2 Get Dorm Services (Extra monthly services)
+            const { data: servicesData } = await supabase
+                .from('dorm_services')
+                .select('id, name, price')
+                .eq('dorm_id', dorm.id)
+                .order('created_at', { ascending: true })
+
+            setDormServices((servicesData || []).map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                price: Number(s.price) || 0
+            })))
+
             // 2. Get Rooms & Active Tenants
             const { data: roomsData } = await supabase
                 .from('rooms')
@@ -162,6 +187,7 @@ export default function BillingClient() {
                     .eq('status', 'active')
 
                 // 6. Map to UI format
+                const servicesTotal = (servicesData || []).reduce((sum: number, s: any) => sum + (Number(s.price) || 0), 0)
                 const mappedBilling = roomsData.map(room => {
                     // CRITICAL FIX: Only find the ACTIVE tenant for this room
                     const activeTenant = (room.tenants as any[])?.find((t: any) => t.status === 'active')
@@ -205,7 +231,10 @@ export default function BillingClient() {
                         electricityCurr: utils?.curr_electric_meter || 0,
                         waterPrev: utils?.prev_water_meter || 0,
                         waterCurr: utils?.curr_water_meter || 0,
-                        others: isIssued ? (bill.other_amount || 0) : 0,
+                        // Snapshot rule:
+                        // - If bill already exists, trust its other_amount (so old bills won't change when settings change)
+                        // - If not issued yet, use current dorm_services total
+                        others: isIssued ? (bill.other_amount || 0) : servicesTotal,
                         utilityId: utils?.id,
                         billId: bill?.id,
                         billStatus: bill?.status || 'unpaid',
@@ -359,6 +388,31 @@ export default function BillingClient() {
                 throw billError
             }
 
+            // 1.1 Snapshot extra services into bill_items (so issued receipts won't change later)
+            const extraItems: BillItemRow[] = (dormServices || [])
+                .map((s) => ({ name: String(s.name || '').trim(), amount: Number(s.price) || 0 }))
+                .filter((s) => !!s.name && s.amount > 0)
+
+            if (extraItems.length > 0) {
+                const { error: itemsErr } = await supabase
+                    .from('bill_items')
+                    .insert(extraItems.map((it) => ({
+                        bill_id: newBill.id,
+                        name: it.name,
+                        amount: it.amount
+                    })))
+
+                if (itemsErr) {
+                    // If migration not applied yet, don't block issuing the bill.
+                    const msg = String(itemsErr.message || '')
+                    const code = (itemsErr as any).code
+                    const isMissingTable = code === '42P01' || msg.toLowerCase().includes('could not find the table') || msg.toLowerCase().includes('relation') || msg.toLowerCase().includes('schema cache')
+                    if (!isMissingTable) {
+                        throw new Error(`บันทึกรายการค่าบริการเพิ่มเติมไม่สำเร็จ: ${itemsErr.message}`)
+                    }
+                }
+            }
+
             // 2. Call LINE Notification API if tenant has LINE linked AND toggle is ON
             const shouldSendLine = item.lineUserId && sendToLineMap[item.roomId]
             if (shouldSendLine) {
@@ -470,8 +524,11 @@ export default function BillingClient() {
             })
         }
 
-        if (item.others > 0) {
-            itemsArr.push({ name: 'ค่าใช้จ่ายอื่นๆ', amount: Number(item.others) })
+        if (dormServices.length > 0) {
+            dormServices.forEach((s) => {
+                if ((Number(s.price) || 0) <= 0) return
+                itemsArr.push({ name: s.name, amount: Number(s.price) || 0 })
+            })
         }
 
         const data = {
@@ -488,7 +545,7 @@ export default function BillingClient() {
             bankNo: dormSettings?.bank_account_no || '-',
             bankAccount: dormSettings?.bank_account_name || dormName,
             items: itemsArr,
-            total: item.rent + waterAmt + electricAmt + item.others
+            total: item.rent + waterAmt + electricAmt + (Number(item.others) || 0)
         }
 
         setPreviewData(data)

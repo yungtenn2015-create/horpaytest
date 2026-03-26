@@ -53,12 +53,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Tenant has no LINE linked' }, { status: 400 });
     }
 
-    // 2. Fetch Dorm & settings
+    // 2. Fetch Dorm & settings (+ snapshot bill items)
     const [{ data: dorm }, { data: settings }, { data: dormConfig }] = await Promise.all([
       supabaseAdmin.from('dorms').select('name, contact_number').eq('id', bill.rooms.dorm_id).single(),
       supabaseAdmin.from('dorm_settings').select('*').eq('dorm_id', bill.rooms.dorm_id).maybeSingle(),
       supabaseAdmin.from('line_oa_configs').select('*').eq('dorm_id', bill.rooms.dorm_id).maybeSingle()
     ]);
+
+    // bill_items is optional (migration might not be applied yet)
+    let billItems: any[] = [];
+    try {
+      const { data } = await supabaseAdmin
+        .from('bill_items')
+        .select('name, amount')
+        .eq('bill_id', billId)
+        .order('created_at', { ascending: true });
+      billItems = data || [];
+    } catch (e) {
+      billItems = [];
+    }
 
     if (!dormConfig) {
       console.error('LINE OA not configured for dorm:', bill.rooms.dorm_id);
@@ -73,7 +86,7 @@ export async function POST(req: Request) {
     }
 
     // 3. Construct Flex Message
-    const flexMessage = createBillFlexMessage(bill, dorm || { name: 'หอพัก' }, settings);
+    const flexMessage = createBillFlexMessage(bill, dorm || { name: 'หอพัก' }, settings, billItems || []);
 
     // 4. Send via LINE Messaging API
     const response = await fetch('https://api.line.me/v2/bot/message/push', {
@@ -106,7 +119,7 @@ export async function POST(req: Request) {
   }
 }
 
-function createBillFlexMessage(bill: any, dorm: any, bankSettings: any) {
+function createBillFlexMessage(bill: any, dorm: any, bankSettings: any, billItems: any[]) {
   const dormName = dorm.name || 'หอพัก';
   const roomAmount = Number(bill.room_amount) || 0;
   const utils = bill.utilities;
@@ -128,6 +141,19 @@ function createBillFlexMessage(bill: any, dorm: any, bankSettings: any) {
   const dueDate = bill.due_date ?
     new Date(bill.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) :
     '-';
+
+  const extraServiceRows = (Array.isArray(billItems) ? billItems : [])
+    .map((s) => ({ name: String(s?.name || '').trim(), price: Number(s?.amount) || 0 }))
+    .filter((s) => !!s.name && s.price > 0)
+    .slice(0, 6) // keep flex compact
+    .map((s) => ({
+      type: "box",
+      layout: "horizontal",
+      contents: [
+        { type: "text", text: s.name, color: "#6B7280", size: "sm", flex: 6, wrap: true },
+        { type: "text", text: `฿${s.price.toLocaleString()}`, color: "#111827", weight: "bold", size: "sm", align: "end", flex: 4 }
+      ]
+    }));
 
   return {
     type: "flex",
@@ -298,25 +324,16 @@ function createBillFlexMessage(bill: any, dorm: any, bankSettings: any) {
                   }] : [])
                 ]
               },
-              ...(otherAmount > 0 ? [{
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  {
-                    type: "text",
-                    text: "อื่นๆ",
-                    color: "#6B7280",
-                    size: "md"
-                  },
-                  {
-                    type: "text",
-                    text: `฿${otherAmount.toLocaleString()}`,
-                    color: "#111827",
-                    weight: "bold",
-                    align: "end"
-                  }
-                ]
-              }] : [])
+              ...(extraServiceRows.length > 0
+                ? extraServiceRows
+                : (otherAmount > 0 ? [{
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    { type: "text", text: "อื่นๆ", color: "#6B7280", size: "md" },
+                    { type: "text", text: `฿${otherAmount.toLocaleString()}`, color: "#111827", weight: "bold", align: "end" }
+                  ]
+                }] : []))
             ]
           },
           {
