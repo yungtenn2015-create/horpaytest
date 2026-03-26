@@ -77,6 +77,11 @@ export async function POST(req: Request) {
 async function handleEvent(event: any, config: any, supabaseAdmin: any) {
   const { type, source, replyToken } = event;
   const lineUserId = source.userId;
+  console.log('Webhook event type:', type);
+  console.log('Webhook message type:', event.message?.type || null);
+  if (event.message?.type === 'text') {
+    console.log('Webhook message text (as-is):', event.message.text);
+  }
 
   if (type === 'follow') {
     // Safer approach: do NOT auto-link owner on follow.
@@ -188,6 +193,9 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
       // Very tolerant: just find 'owner' + 6 digits anywhere after it
       const digitToAscii = (ch: string) => {
         const codePoint = ch.codePointAt(0) || 0
+        // Generic fallback: try JS numeric conversion for other digit scripts
+        const n = Number(ch)
+        if (Number.isFinite(n) && Number.isInteger(n) && n >= 0 && n <= 9) return String(n)
         // ASCII 0-9
         if (codePoint >= 0x30 && codePoint <= 0x39) return ch
         // Thai digits: ๐-๙ (U+0E50..U+0E59)
@@ -255,10 +263,12 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
       }
       // If user is trying to claim owner but format is wrong, reply with a specific hint.
       if (/owner/i.test(normalizedOwnerText)) {
+        const digitsAny = normalizedOwnerText.match(/\p{Nd}/gu) || []
+        const tail6 = digitsAny.slice(-6).join('')
         await replyText(
           replyToken,
           config.access_token,
-          `รูปแบบ Owner Code ไม่ถูกต้องครับ\n\nตัวอย่างที่ถูกต้อง:\n- owner-123456\n- owner123456\n\nหมายเหตุ: ต้องเป็นเลข 6 หลักเท่านั้น`
+          `รูปแบบ Owner Code ไม่ถูกต้องครับ\n\nตัวอย่างที่ถูกต้อง:\n- owner-123456\n- owner123456\n\nหมายเหตุ: ต้องมีเลข 6 หลักเท่านั้น\n(ที่ระบบอ่านเจอเลขท้ายสุด ${digitsAny.length} ตัว: ${tail6 || '-'})`
         );
         return;
       }
