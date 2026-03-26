@@ -737,29 +737,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
           });
         }
 
-        // 8) Acknowledge tenant
-        const tenantAckFlex = {
-          type: 'bubble',
-          header: {
-            type: 'box',
-            layout: 'vertical',
-            backgroundColor: '#10B981',
-            paddingAll: '16px',
-            contents: [
-              { type: 'text', text: 'รับสลิปเรียบร้อย ✅', color: '#FFFFFF', weight: 'bold', size: 'lg', align: 'center' }
-            ]
-          },
-          body: {
-            type: 'box',
-            layout: 'vertical',
-            paddingAll: '16px',
-            contents: [
-              { type: 'text', text: 'กำลังรอเจ้าของหอตรวจสอบ', color: '#065F46', weight: 'bold', size: 'sm', align: 'center', wrap: true }
-            ]
-          }
-        };
-
-        await replyFlex(replyToken, config.access_token, 'รับสลิปเรียบร้อย', tenantAckFlex);
+        // 8) Do not auto-reply to tenant (save LINE message quota)
         return;
       } catch (err: unknown) {
         console.error('Slip handling error:', err);
@@ -895,6 +873,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
                   contents: [
                     { type: 'text', text: tenantName, weight: 'bold', size: 'lg', color: '#111827', align: 'center' },
                     { type: 'text', text: `ห้อง ${roomNumber} • ${billingMonth}`, size: 'sm', color: '#6B7280', align: 'center', wrap: true },
+                    { type: 'text', text: 'ขอบคุณค่ะ', size: 'sm', color: '#059669', align: 'center', weight: 'bold', margin: 'sm' },
                     { type: 'separator', margin: 'md' },
                     {
                       type: 'box',
