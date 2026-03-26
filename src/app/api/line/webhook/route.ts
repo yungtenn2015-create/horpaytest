@@ -79,105 +79,216 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
   const lineUserId = source.userId;
 
   if (type === 'follow') {
-    // Phase 2, Step 3: Link Owner
-    if (!config.owner_line_user_id) {
-      await supabaseAdmin
-        .from('line_oa_configs')
-        .update({ owner_line_user_id: lineUserId })
-        .eq('id', config.id);
+    // Safer approach: do NOT auto-link owner on follow.
+    // Everyone gets the same welcome, then owner can claim via OWNER-XXXXXX (generated from dashboard).
+    const welcomeFlex = {
+      type: 'bubble',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          {
+            type: 'text',
+            text: `${config.dorms?.name || 'หอพัก'}`,
+            weight: 'bold',
+            size: 'xl',
+            color: '#16A34A'
+          },
+          {
+            type: 'text',
+            text: 'ยินดีต้อนรับค่ะ',
+            weight: 'bold',
+            size: 'md',
+            color: '#4b5563',
+            margin: 'sm'
+          }
+        ]
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        contents: [
+          {
+            type: 'text',
+            text: 'ไลน์นี้ใช้สำหรับแจ้งเตือนชำระค่าห้อง และรับสลิปจากผู้เช่า',
+            wrap: true,
+            size: 'sm'
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#f3f4f6',
+            paddingAll: 'lg',
+            cornerRadius: 'md',
+            contents: [
+              {
+                type: 'text',
+                text: 'ผู้เช่า: พิมพ์ เลขห้อง-เบอร์โทรศัพท์',
+                weight: 'bold',
+                size: 'sm',
+                color: '#4b5563'
+              },
+              {
+                type: 'text',
+                text: 'ตัวอย่าง: 101-0812345678',
+                size: 'xs',
+                color: '#6b7280',
+                margin: 'sm'
+              },
+              {
+                type: 'separator',
+                margin: 'md'
+              },
+              {
+                type: 'text',
+                text: 'เจ้าของหอ: พิมพ์ OWNER-XXXXXX',
+                weight: 'bold',
+                size: 'sm',
+                color: '#4b5563',
+                margin: 'md'
+              },
+              {
+                type: 'text',
+                text: 'รหัสยืนยันสร้างได้ที่หน้า Settings > การเชื่อมต่อ LINE',
+                size: 'xs',
+                color: '#6b7280',
+                margin: 'sm',
+                wrap: true
+              }
+            ]
+          }
+        ]
+      }
+    };
 
-      await replyText(replyToken, config.access_token, `สวัสดีครับเจ้าของหอ ${config.dorms?.name || ''}! ระบบผูกบัญชีเจ้าของสำหรับรับแจ้งเตือนสลิปเรียบร้อยแล้วครับ`);
-    } else {
-      // Phase 2, Step 4: Improved Welcome Message for Tenants (Flex Message)
-      const welcomeFlex = {
-        type: 'bubble',
-        header: {
-          type: 'box',
-          layout: 'vertical',
-          contents: [
-            {
-              type: 'text',
-              text: `${config.dorms?.name || 'หอพัก'}`,
-              weight: 'bold',
-              size: 'xl',
-              color: '#16A34A'
-            },
-            {
-              type: 'text',
-              text: 'ยินดีต้อนรับค่ะ',
-              weight: 'bold',
-              size: 'md',
-              color: '#4b5563',
-              margin: 'sm'
-            }
-          ]
-        },
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'md',
-          contents: [
-            {
-              type: 'text',
-              text: 'ไลน์นี้ใช้สำหรับแจ้งเตือนชำระค่าห้อง',
-              wrap: true,
-              size: 'sm'
-            },
-            {
-              type: 'text',
-              text: 'ลงทะเบียนเพื่อเชื่อมบิลค่าห้องแจ้งเตือนในไลน์',
-              wrap: true,
-              size: 'sm'
-            },
-            {
-              type: 'box',
-              layout: 'vertical',
-              backgroundColor: '#f3f4f6',
-              paddingAll: 'lg',
-              cornerRadius: 'md',
-              contents: [
-                {
-                  type: 'text',
-                  text: 'กรุณาพิมพ์: เลขห้อง-เบอร์โทรศัพท์',
-                  weight: 'bold',
-                  size: 'sm',
-                  color: '#4b5563'
-                },
-                {
-                  type: 'text',
-                  text: 'ตัวอย่าง: 101-0123456789',
-                  size: 'xs',
-                  color: '#6b7280',
-                  margin: 'sm'
-                }
-              ]
-            },
-            {
-              type: 'text',
-              text: 'พิมพ์เสร็จแล้วส่งมาได้เลยค่ะ 😊',
-              size: 'sm',
-              wrap: true,
-              margin: 'md'
-            }
-          ]
-        }
-      };
-
-      await replyFlex(replyToken, config.access_token, 'ยินดีต้อนรับสู่ Horpay', welcomeFlex);
-    }
+    await replyFlex(replyToken, config.access_token, 'ยินดีต้อนรับสู่ Horpay', welcomeFlex);
   }
 
   if (type === 'message') {
     if (event.message.type === 'text') {
       const text = event.message.text.trim();
 
-      // Pattern: [RoomNum]-[10-digit Phone] (e.g., "101-0812345678")
-      const verifyPattern = /^(\w+)-(\d{10})$/;
-      const match = text.match(verifyPattern);
+      // Owner claim: OWNER-123456
+      // Accept common variations like spaces, different dash characters, or missing dash.
+      const normalizedOwnerText = text
+        // Remove invisible characters (ZWSP, BOM, etc.)
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/\s+/g, '')
+        .replace(/[–—−]/g, '-') // en dash/em dash/minus
+        .replace(/[：]/g, ':')
+        // Convert full-width digits ０-９ to 0-9
+        .replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30))
+        // Convert Thai digits ๐-๙ to 0-9
+        .replace(/[๐-๙]/g, (ch) => String(ch.charCodeAt(0) - 0x0e50));
+
+      console.log('LINE message raw text:', text);
+      console.log('LINE message normalizedOwnerText:', normalizedOwnerText);
+
+      // Very tolerant: just find 'owner' + 6 digits anywhere after it
+      const digitToAscii = (ch: string) => {
+        const codePoint = ch.codePointAt(0) || 0
+        // ASCII 0-9
+        if (codePoint >= 0x30 && codePoint <= 0x39) return ch
+        // Thai digits: ๐-๙ (U+0E50..U+0E59)
+        if (codePoint >= 0x0E50 && codePoint <= 0x0E59) return String(codePoint - 0x0E50)
+        // Fullwidth digits: ０-９ (U+FF10..U+FF19)
+        if (codePoint >= 0xFF10 && codePoint <= 0xFF19) return String(codePoint - 0xFF10)
+        // Arabic-Indic digits: ٠-٩ (U+0660..U+0669)
+        if (codePoint >= 0x0660 && codePoint <= 0x0669) return String(codePoint - 0x0660)
+        // Extended Arabic-Indic digits: ۰-۹ (U+06F0..U+06F9)
+        if (codePoint >= 0x06F0 && codePoint <= 0x06F9) return String(codePoint - 0x06F0)
+        return ''
+      }
+
+      const ownerHasWord = /owner/i.test(normalizedOwnerText)
+      const ownerClaimMatch = normalizedOwnerText.match(/owner[^0-9]*([0-9]{6})/i);
+      let code: string | null = null
+
+      if (ownerClaimMatch) {
+        code = ownerClaimMatch[1]
+      } else if (ownerHasWord) {
+        // Ultimate fallback: take any 6 decimal digits found after normalization.
+        const digitsAny = normalizedOwnerText.match(/\p{Nd}/gu) || []
+        if (digitsAny.length >= 6) {
+          const mapped = digitsAny.slice(-6).map(digitToAscii).filter(Boolean)
+          if (mapped.length === 6) code = mapped.join('')
+        }
+      }
+
+      if (code) {
+        const expiresAt = config.owner_claim_expires_at ? new Date(config.owner_claim_expires_at) : null;
+        const isExpired = !expiresAt || isNaN(expiresAt.getTime()) || expiresAt.getTime() < Date.now();
+
+        if (!config.owner_claim_code) {
+          await replyText(replyToken, config.access_token, `ยังไม่มีรหัสยืนยันในระบบ กรุณาให้แอดมินสร้างรหัสที่หน้า Settings > การเชื่อมต่อ LINE ก่อนครับ`);
+          return;
+        }
+
+        if (isExpired) {
+          await replyText(replyToken, config.access_token, `รหัสยืนยันหมดอายุแล้ว กรุณาให้แอดมินสร้างรหัสใหม่ในหน้า Settings > การเชื่อมต่อ LINE ครับ`);
+          return;
+        }
+
+        if (String(config.owner_claim_code) !== code) {
+          await replyText(replyToken, config.access_token, `รหัสยืนยันไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง (รูปแบบ: OWNER-123456)`);
+          return;
+        }
+
+        const { error: linkErr } = await supabaseAdmin
+          .from('line_oa_configs')
+          .update({
+            owner_line_user_id: lineUserId,
+            owner_claim_used_at: new Date().toISOString(),
+            owner_claim_code: null,
+            owner_claim_expires_at: null
+          })
+          .eq('id', config.id);
+
+        if (linkErr) {
+          await replyText(replyToken, config.access_token, `ผูกบัญชีเจ้าของไม่สำเร็จ กรุณาลองใหม่อีกครั้ง`);
+          return;
+        }
+
+        await replyText(replyToken, config.access_token, `ผูกบัญชีเจ้าของสำเร็จ ✅ ตอนนี้บัญชีนี้จะได้รับแจ้งเตือนสลิปและแจ้งเตือนจากระบบครับ`);
+        return;
+      }
+      // If user is trying to claim owner but format is wrong, reply with a specific hint.
+      if (/owner/i.test(normalizedOwnerText)) {
+        await replyText(
+          replyToken,
+          config.access_token,
+          `รูปแบบ Owner Code ไม่ถูกต้องครับ\n\nตัวอย่างที่ถูกต้อง:\n- owner-123456\n- owner123456\n\nหมายเหตุ: ต้องเป็นเลข 6 หลักเท่านั้น`
+        );
+        return;
+      }
+
+      // Pattern: [RoomNum]-[Phone] (owner claim is handled above)
+      // We normalize digits so user can input Thai digits / full-width digits / etc.
+      const normalizedTenantText = text
+        // Remove invisible characters
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        // Normalize dash variants to '-'
+        .replace(/[–—−]/g, '-')
+        // Convert full-width digits ０-９ to 0-9
+        .replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30))
+        // Convert Thai digits ๐-๙ to 0-9
+        .replace(/[๐-๙]/g, (ch) => String(ch.charCodeAt(0) - 0x0e50))
+        // Convert Arabic-Indic digits ٠-٩ to 0-9
+        .replace(/[٠-٩]/g, (ch) => String(ch.charCodeAt(0) - 0x0660))
+        // Convert Extended Arabic-Indic digits ۰-۹ to 0-9
+        .replace(/[۰-۹]/g, (ch) => String(ch.charCodeAt(0) - 0x06f0));
+
+      // Allow separators between room and phone: '-', whitespace, '_', ':'
+      // Phone can be 9-10 digits (if 9 digits, we'll prefix with '0')
+      const match = normalizedTenantText.match(/^(\w+)[\s\-_:]*([0-9]{9,10})$/);
 
       if (match) {
         const roomNum = match[1];
-        const phoneNum = match[2];
+        let phoneNum = match[2];
+        if (phoneNum.length === 9) {
+          phoneNum = `0${phoneNum}`;
+        }
 
         const { data: rooms } = await supabaseAdmin
           .from('rooms')
@@ -340,7 +451,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
               },
               {
                 type: 'text',
-                text: 'กรุณาพิมพ์ข้อมูลในรูปแบบที่กำหนดเพื่อลงทะเบียนห้องพักค่ะ',
+                text: 'กรุณาพิมพ์ข้อมูลในรูปแบบที่กำหนดค่ะ',
                 wrap: true,
                 size: 'sm'
               },
@@ -353,7 +464,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
                 contents: [
                   {
                     type: 'text',
-                    text: 'เลขห้อง-เบอร์โทรศัพท์',
+                    text: 'ผู้เช่า: เลขห้อง-เบอร์โทรศัพท์',
                     weight: 'bold',
                     size: 'sm',
                     align: 'center',
@@ -366,6 +477,29 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
                     align: 'center',
                     color: '#78350f',
                     margin: 'xs'
+                  }
+                  ,
+                  {
+                    type: 'separator',
+                    margin: 'md'
+                  },
+                  {
+                    type: 'text',
+                    text: 'เจ้าของหอ: OWNER-123456',
+                    weight: 'bold',
+                    size: 'sm',
+                    align: 'center',
+                    color: '#92400e',
+                    margin: 'md'
+                  },
+                  {
+                    type: 'text',
+                    text: '(สร้างรหัสได้ที่หน้า Settings > การเชื่อมต่อ LINE)',
+                    size: 'xs',
+                    align: 'center',
+                    color: '#78350f',
+                    margin: 'xs',
+                    wrap: true
                   }
                 ]
               }

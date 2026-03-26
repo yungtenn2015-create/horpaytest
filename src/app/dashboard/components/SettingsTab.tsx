@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
     BuildingOfficeIcon,
     MapPinIcon,
@@ -26,10 +26,12 @@ import {
 } from '@heroicons/react/24/solid'
 
 import { Service } from '../DashboardClient'
+import { createClient } from '@/lib/supabase-client'
 
 interface SettingsTabProps {
     activeSettingsTab: string
     setActiveSettingsTab: (tab: string) => void
+    dormId: string
     dormData: {
         name: string
         address: string
@@ -79,6 +81,7 @@ interface SettingsTabProps {
 const SettingsTab: React.FC<SettingsTabProps> = ({
     activeSettingsTab,
     setActiveSettingsTab,
+    dormId,
     dormData,
     setDormData,
     settingsData,
@@ -105,6 +108,91 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
     savingSettings,
     settingsMessage
 }) => {
+    const isDormSection = activeSettingsTab === 'dorm'
+    const isLineSection = activeSettingsTab === 'line'
+
+    const [ownerClaim, setOwnerClaim] = useState<{
+        code: string
+        expiresAt: string | null
+        usedAt: string | null
+        loading: boolean
+        error: string
+        success: string
+    }>({ code: '', expiresAt: null, usedAt: null, loading: false, error: '', success: '' })
+
+    const ownerClaimStatus = useMemo(() => {
+        if (!ownerClaim.expiresAt) return { isExpired: true, msLeft: 0 }
+        const t = new Date(ownerClaim.expiresAt).getTime()
+        const msLeft = t - Date.now()
+        return { isExpired: msLeft <= 0, msLeft: Math.max(0, msLeft) }
+    }, [ownerClaim.expiresAt])
+
+    useEffect(() => {
+        const loadOwnerClaim = async () => {
+            if (!isLineSection || !dormId) return
+            const supabase = createClient()
+            try {
+                const { data, error } = await supabase
+                    .from('line_oa_configs')
+                    .select('owner_claim_code, owner_claim_expires_at, owner_claim_used_at')
+                    .eq('dorm_id', dormId)
+                    .maybeSingle()
+                if (error) throw error
+                setOwnerClaim(prev => ({
+                    ...prev,
+                    code: data?.owner_claim_code || '',
+                    expiresAt: data?.owner_claim_expires_at || null,
+                    usedAt: data?.owner_claim_used_at || null
+                }))
+            } catch (e: any) {
+                // Fallback gracefully if migration not applied yet
+                setOwnerClaim(prev => ({
+                    ...prev,
+                    error: e?.message?.includes('owner_claim_code') ? 'ยังไม่ได้รัน SQL Migration สำหรับ Owner Code' : ''
+                }))
+            }
+        }
+        loadOwnerClaim()
+    }, [dormId, isLineSection])
+
+    const handleGenerateOwnerCode = async () => {
+        if (!dormId) return
+        setOwnerClaim(prev => ({ ...prev, loading: true, error: '', success: '' }))
+        const supabase = createClient()
+        try {
+            const { data: sessionData, error: sessionErr } = await supabase.auth.getSession()
+            if (sessionErr || !sessionData?.session?.access_token) {
+                throw new Error('กรุณาเข้าสู่ระบบใหม่ แล้วลองอีกครั้ง')
+            }
+
+            const res = await fetch('/api/line/owner-claim-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    dorm_id: dormId,
+                    access_token: sessionData.session.access_token
+                })
+            })
+            const json = await res.json().catch(() => ({}))
+            if (!res.ok || !json?.success) {
+                throw new Error(json?.error || 'ไม่สามารถสร้างรหัสได้')
+            }
+
+            setOwnerClaim(prev => ({
+                ...prev,
+                code: String(json.code || ''),
+                expiresAt: String(json.expires_at || ''),
+                usedAt: null,
+                success: 'สร้างรหัสยืนยันแล้ว (อายุ 10 นาที)'
+            }))
+            setTimeout(() => setOwnerClaim(prev => ({ ...prev, success: '' })), 2500)
+        } catch (e: any) {
+            setOwnerClaim(prev => ({ ...prev, error: e?.message || 'ไม่สามารถสร้างรหัสได้' }))
+        } finally {
+            setOwnerClaim(prev => ({ ...prev, loading: false }))
+        }
+    }
+
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto h-full px-6 pt-12 pb-32">
             <div className="mb-8">
@@ -114,26 +202,15 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                 <p className="text-gray-400 font-bold text-sm mt-1">จัดการข้อมูลหอพักและตั้งค่าการแจ้งเตือน</p>
             </div>
 
-            {/* Settings Navigation */}
-            <div className="flex bg-gray-100/50 p-1.5 rounded-2xl mb-8 border border-gray-100">
-                <button
-                    onClick={() => setActiveSettingsTab('dorm')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs transition-all ${activeSettingsTab === 'dorm' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                    <BuildingOfficeIcon className="w-4 h-4" />
-                    ข้อมูลหอพัก
-                </button>
-                <button
-                    onClick={() => setActiveSettingsTab('line')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs transition-all ${activeSettingsTab === 'line' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                    <ChatBubbleLeftRightIcon className="w-4 h-4" />
-                    การเชื่อมต่อ LINE
-                </button>
+            <div className="mb-8">
+                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black ${isDormSection ? 'bg-gray-50 text-gray-700 border-gray-200' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
+                    {isDormSection ? <BuildingOfficeIcon className="w-4 h-4" /> : <ChatBubbleLeftRightIcon className="w-4 h-4" />}
+                    {isDormSection ? 'โหมด: ข้อมูลหอพัก' : 'โหมด: การเชื่อมต่อ LINE'}
+                </div>
             </div>
 
             <div className="space-y-6">
-                {activeSettingsTab === 'dorm' && (
+                {isDormSection && (
                     <>
                         {/* Dorm Info Section */}
                         <div className="bg-white rounded-[2.5rem] p-8 border-2 border-gray-50 shadow-sm space-y-6">
@@ -407,7 +484,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                     </>
                 )}
 
-                {activeSettingsTab === 'line' && (
+                {isLineSection && (
                     <div className="space-y-6">
                         <div className="bg-gray-50/50 rounded-3xl p-6 border border-gray-100/50 backdrop-blur-sm shadow-sm group hover:shadow-md transition-all duration-300">
                             <div className="flex items-center justify-between mb-8">
@@ -492,7 +569,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                                             <p className="text-[11px] text-gray-400 font-bold mt-0.5">
                                                 {lineConfig.owner_line_user_id
                                                     ? `LINE ID: ${lineConfig.owner_line_user_id.slice(0, 8)}...`
-                                                    : 'ให้เจ้าของหอแอด OA เพื่อผูกบัญชีอัตโนมัติ'}
+                                                    : 'ให้เจ้าของหอพิมพ์ Owner Code เพื่อผูกบัญชี'}
                                             </p>
                                         </div>
                                         <button
@@ -504,6 +581,64 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                                         </button>
                                     </div>
                                 </div>
+
+                                <div className="space-y-3">
+                                    <label className="text-[13px] font-black text-gray-500 ml-1">ยืนยันเจ้าของหอ (Owner Code)</label>
+                                    <div className="p-4 bg-white border border-gray-100 rounded-2xl shadow-sm space-y-3">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="space-y-1">
+                                                <p className="text-sm font-black text-gray-800 flex items-center gap-2">
+                                                    <KeyIcon className="w-4 h-4 text-emerald-600" />
+                                                    ใช้รหัสเพื่อผูกเจ้าของให้ถูกคน
+                                                </p>
+                                                <p className="text-[11px] font-bold text-gray-400 leading-relaxed">
+                                                    ให้เจ้าของหอเปิด LINE ที่แอด OA นี้ แล้วพิมพ์: <span className="font-black text-gray-600">OWNER-XXXXXX</span>
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={handleGenerateOwnerCode}
+                                                disabled={ownerClaim.loading || !showLineConfig}
+                                                className="h-10 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl border border-emerald-100 font-black text-[11px] transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap"
+                                            >
+                                                {ownerClaim.loading ? 'กำลังสร้าง...' : (ownerClaim.code ? 'รีเฟรชรหัส' : 'สร้างรหัส')}
+                                            </button>
+                                        </div>
+
+                                        {ownerClaim.error && (
+                                            <div className="p-3 rounded-2xl bg-rose-50 border border-rose-100 text-rose-700 text-[11px] font-black">
+                                                {ownerClaim.error}
+                                            </div>
+                                        )}
+                                        {ownerClaim.success && (
+                                            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] font-black">
+                                                {ownerClaim.success}
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex-1">
+                                                <div className={`h-12 rounded-2xl px-4 flex items-center justify-between border-2 ${ownerClaim.code ? (ownerClaimStatus.isExpired ? 'bg-amber-50 border-amber-100' : 'bg-gray-50 border-gray-100') : 'bg-gray-50 border-gray-100'}`}>
+                                                    <span className={`font-mono text-[13px] font-black ${ownerClaim.code ? 'text-gray-800' : 'text-gray-400'}`}>
+                                                        {ownerClaim.code ? `OWNER-${ownerClaim.code}` : 'ยังไม่มีรหัส'}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => ownerClaim.code && copyToClipboard(`OWNER-${ownerClaim.code}`)}
+                                                        disabled={!ownerClaim.code}
+                                                        className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-all active:scale-90 disabled:opacity-50"
+                                                    >
+                                                        <ClipboardIcon className="w-5 h-5 text-gray-400" />
+                                                    </button>
+                                                </div>
+                                                <p className={`mt-2 text-[10px] font-black uppercase tracking-widest ${ownerClaim.code ? (ownerClaimStatus.isExpired ? 'text-amber-600' : 'text-gray-400') : 'text-gray-300'}`}>
+                                                    {ownerClaim.code
+                                                        ? (ownerClaimStatus.isExpired ? 'รหัสหมดอายุแล้ว (สร้างใหม่ได้)' : `หมดอายุ: ${new Date(ownerClaim.expiresAt as string).toLocaleString('th-TH')}`)
+                                                        : 'กด “สร้างรหัส” เพื่อเริ่มผูกเจ้าของ'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="space-y-2">
                                     <label className="text-[13px] font-black text-gray-500 ml-1">Channel Secret</label>
                                     <input

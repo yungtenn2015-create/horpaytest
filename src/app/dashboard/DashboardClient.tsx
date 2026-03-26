@@ -1463,6 +1463,7 @@ export default function DashboardClient() {
                     <SettingsTab
                         activeSettingsTab={activeSettingsTab}
                         setActiveSettingsTab={setActiveSettingsTab}
+                        dormId={dorm?.id || ''}
                         dormData={dormData}
                         setDormData={setDormData}
                         settingsData={settingsData}
