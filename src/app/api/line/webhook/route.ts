@@ -258,7 +258,79 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
           return;
         }
 
-        await replyText(replyToken, config.access_token, `ผูกบัญชีเจ้าของสำเร็จ ✅ ตอนนี้บัญชีนี้จะได้รับแจ้งเตือนสลิปและแจ้งเตือนจากระบบครับ`);
+        const ownerLinkedSuccessFlex = {
+          type: 'bubble',
+          header: {
+            type: 'box',
+            layout: 'vertical',
+            contents: [
+              {
+                type: 'text',
+                text: 'ผูกบัญชีเจ้าของหอสำเร็จ ✅',
+                weight: 'bold',
+                size: 'xl',
+                color: '#16A34A',
+                align: 'center'
+              }
+            ]
+          },
+          body: {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#ECFDF5',
+            paddingAll: 'lg',
+            cornerRadius: 'md',
+            contents: [
+              {
+                type: 'box',
+                layout: 'vertical',
+                backgroundColor: '#DCFCE7',
+                paddingAll: 'md',
+                cornerRadius: 'md',
+                contents: [
+                  {
+                    type: 'text',
+                    text: 'ตอนนี้บัญชีนี้จะได้รับแจ้งเตือนสลิปและแจ้งเตือนจากระบบครับ',
+                    wrap: true,
+                    size: 'sm',
+                    color: '#065F46',
+                    weight: 'bold'
+                  }
+                ]
+              },
+              {
+                type: 'separator',
+                margin: 'md'
+              },
+              {
+                type: 'text',
+                text: 'หากต้องการทดสอบ ลองส่งสลิปจากผู้เช่าในห้องพักนั้นได้เลย',
+                wrap: true,
+                size: 'xs',
+                color: '#166534',
+                margin: 'sm'
+              }
+            ]
+          }
+        };
+
+        console.log('Sending owner linked success FLEX');
+        try {
+          await replyFlex(
+            replyToken,
+            config.access_token,
+            'ผูกบัญชีเจ้าของหอสำเร็จ',
+            ownerLinkedSuccessFlex
+          );
+        } catch (err: unknown) {
+          console.error('replyFlex failed:', err);
+          // Fallback to plain text so user still gets confirmation
+          await replyText(
+            replyToken,
+            config.access_token,
+            `ผูกบัญชีเจ้าของหอสำเร็จ ✅ ตอนนี้บัญชีนี้จะได้รับแจ้งเตือนสลิปและแจ้งเตือนจากระบบครับ`
+          );
+        }
         return;
       }
       // If user is trying to claim owner but format is wrong, reply with a specific hint.
@@ -493,24 +565,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
                     type: 'separator',
                     margin: 'md'
                   },
-                  {
-                    type: 'text',
-                    text: 'เจ้าของหอ: OWNER-123456',
-                    weight: 'bold',
-                    size: 'sm',
-                    align: 'center',
-                    color: '#92400e',
-                    margin: 'md'
-                  },
-                  {
-                    type: 'text',
-                    text: '(สร้างรหัสได้ที่หน้า Settings > การเชื่อมต่อ LINE)',
-                    size: 'xs',
-                    align: 'center',
-                    color: '#78350f',
-                    margin: 'xs',
-                    wrap: true
-                  }
+              
                 ]
               }
             ]
