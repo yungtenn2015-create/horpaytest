@@ -20,6 +20,7 @@ import {
 
 interface Bill {
     id: string;
+    tenant_id: string;
     room_number: string;
     tenant_name: string;
     billing_month: string;
@@ -28,6 +29,7 @@ interface Bill {
     utility_amount: number;
     other_amount: number;
     status: 'paid' | 'waiting_verify' | 'unpaid' | 'overdue' | 'cancelled';
+    bill_type: 'monthly' | 'move_out';
     created_at: string;
 }
 
@@ -38,8 +40,10 @@ export default function HistoryClient() {
     const [selectedDate, setSelectedDate] = useState(startOfMonth(new Date()))
     const [searchQuery, setSearchQuery] = useState('')
     const [statusFilter, setStatusFilter] = useState<string>('all')
+    const [billTypeFilter, setBillTypeFilter] = useState<'all' | 'monthly' | 'move_out'>('all')
     const [dormName, setDormName] = useState('รายการประวัติบิล')
     const [cancellingId, setCancellingId] = useState<string | null>(null)
+    const [settlingId, setSettlingId] = useState<string | null>(null)
     const [showCancelModal, setShowCancelModal] = useState(false)
     const [billToCancel, setBillToCancel] = useState<Bill | null>(null)
 
@@ -74,8 +78,13 @@ export default function HistoryClient() {
 
             // 2. Get Bills for selected month
             const monthStr = format(selectedDate, 'yyyy-MM-01')
+            const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
+            const nextMonthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 1)
+            const monthStartIso = monthStart.toISOString()
+            const nextMonthStartIso = nextMonthStart.toISOString()
 
-            const { data: billsData, error } = await supabase
+            // Monthly bills: group by billing_month
+            const { data: monthlyBills, error: monthlyErr } = await supabase
                 .from('bills')
                 .select(`
                     id,
@@ -84,28 +93,63 @@ export default function HistoryClient() {
                     utility_amount,
                     other_amount,
                     status,
+                    bill_type,
                     created_at,
                     billing_month,
-                    rooms (room_number),
+                    tenant_id,
+                    rooms!inner (room_number, dorm_id),
                     tenants (name)
                 `)
                 .eq('billing_month', monthStr)
+                .eq('rooms.dorm_id', dorm.id)
                 .order('created_at', { ascending: false })
+            if (monthlyErr) throw monthlyErr
 
-            if (error) throw error
+            // Move-out bills: user expects by issued month (created_at), not billing_month
+            const { data: moveOutBills, error: moveOutErr } = await supabase
+                .from('bills')
+                .select(`
+                    id,
+                    total_amount,
+                    room_amount,
+                    utility_amount,
+                    other_amount,
+                    status,
+                    bill_type,
+                    created_at,
+                    billing_month,
+                    tenant_id,
+                    rooms!inner (room_number, dorm_id),
+                    tenants (name)
+                `)
+                .eq('bill_type', 'move_out')
+                .eq('rooms.dorm_id', dorm.id)
+                .gte('created_at', monthStartIso)
+                .lt('created_at', nextMonthStartIso)
+                .order('created_at', { ascending: false })
+            if (moveOutErr) throw moveOutErr
 
-            const mappedBills = (billsData || []).map((b: any) => ({
-                id: b.id,
-                room_number: b.rooms?.room_number || 'N/A',
-                tenant_name: b.tenants?.name || 'ไม่ทราบชื่อ',
-                billing_month: b.billing_month,
-                total_amount: b.total_amount,
-                room_amount: b.room_amount,
-                utility_amount: b.utility_amount,
-                other_amount: b.other_amount,
-                status: b.status,
-                created_at: b.created_at
-            }))
+            const mergedById = new Map<string, any>()
+            ;(monthlyBills || []).forEach((b: any) => mergedById.set(b.id, b))
+            ;(moveOutBills || []).forEach((b: any) => mergedById.set(b.id, b))
+
+            const mappedBills: Bill[] = Array.from(mergedById.values()).map((b: any) => {
+                const billType: Bill['bill_type'] = b.bill_type === 'move_out' ? 'move_out' : 'monthly'
+                return {
+                    id: b.id,
+                    tenant_id: b.tenant_id,
+                    room_number: b.rooms?.room_number || 'N/A',
+                    tenant_name: b.tenants?.name || 'ไม่ทราบชื่อ',
+                    billing_month: b.billing_month,
+                    total_amount: b.total_amount,
+                    room_amount: b.room_amount,
+                    utility_amount: b.utility_amount,
+                    other_amount: b.other_amount,
+                    status: b.status as Bill['status'],
+                    bill_type: billType,
+                    created_at: b.created_at
+                }
+            }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
             setBills(mappedBills)
         } catch (err) {
@@ -121,8 +165,11 @@ export default function HistoryClient() {
         const supabase = createClient()
 
         try {
-            // If it's paid, revert to unpaid instead of cancelling
-            const newStatus = billToCancel.status === 'paid' ? 'unpaid' : 'cancelled'
+            // Move-out bill should always be cancelled when user taps cancel.
+            // For monthly bill, keep previous behavior (paid -> unpaid, else cancelled).
+            const newStatus = billToCancel.bill_type === 'move_out'
+                ? 'cancelled'
+                : (billToCancel.status === 'paid' ? 'unpaid' : 'cancelled')
 
             const { error } = await supabase
                 .from('bills')
@@ -143,6 +190,45 @@ export default function HistoryClient() {
         }
     }
 
+    async function handleConfirmMoveOutSettlement(bill: Bill) {
+        if (settlingId) return
+        setSettlingId(bill.id)
+        const supabase = createClient()
+
+        try {
+            // 1) Close move-out bill itself
+            const { error } = await supabase
+                .from('bills')
+                .update({
+                    status: 'paid',
+                    paid_at: new Date().toISOString()
+                })
+                .eq('id', bill.id)
+            if (error) throw error
+
+            // 2) If settlement is confirmed, close outstanding monthly bills of this tenant.
+            // This supports the flow "หักจากเงินมัดจำ" so monthly bills won't stay waiting.
+            const { error: settleMonthlyErr } = await supabase
+                .from('bills')
+                .update({
+                    status: 'paid',
+                    paid_at: new Date().toISOString()
+                })
+                .eq('tenant_id', bill.tenant_id)
+                .eq('bill_type', 'monthly')
+                .in('status', ['unpaid', 'overdue', 'waiting_verify'])
+                .gt('total_amount', 0)
+            if (settleMonthlyErr) throw settleMonthlyErr
+
+            await fetchHistory()
+        } catch (err) {
+            console.error('Error confirming move-out settlement:', err)
+            alert('ไม่สามารถยืนยันสรุปยอดบิลย้ายออกได้')
+        } finally {
+            setSettlingId(null)
+        }
+    }
+
     const filteredBills = bills.filter(bill => {
         const matchesSearch = bill.room_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
             bill.tenant_name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -151,7 +237,8 @@ export default function HistoryClient() {
             : statusFilter === 'unpaid' 
                 ? (bill.status === 'unpaid' || bill.status === 'waiting_verify' || bill.status === 'overdue')
                 : bill.status === statusFilter
-        return matchesSearch && matchesStatus
+        const matchesType = billTypeFilter === 'all' ? true : bill.bill_type === billTypeFilter
+        return matchesSearch && matchesStatus && matchesType
     })
 
     const getStatusStyle = (status: string) => {
@@ -260,6 +347,27 @@ export default function HistoryClient() {
                                 )
                             })}
                         </div>
+                        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+                            {[
+                                { id: 'all', label: 'ทุกประเภท' },
+                                { id: 'monthly', label: 'บิลรายเดือน' },
+                                { id: 'move_out', label: 'บิลย้ายออก' }
+                            ].map((typeItem) => {
+                                const active = billTypeFilter === typeItem.id
+                                return (
+                                    <button
+                                        key={typeItem.id}
+                                        onClick={() => setBillTypeFilter(typeItem.id as 'all' | 'monthly' | 'move_out')}
+                                        className={`px-4 py-2 rounded-xl text-[11px] font-black whitespace-nowrap transition-all border ${active
+                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-100'
+                                            : 'bg-white text-gray-400 border-gray-100 hover:border-emerald-200 hover:text-emerald-500'
+                                            }`}
+                                    >
+                                        {typeItem.label}
+                                    </button>
+                                )
+                            })}
+                        </div>
                     </div>
                 </header>
 
@@ -297,9 +405,14 @@ export default function HistoryClient() {
                                             </div>
                                             <div>
                                                 <h4 className="font-black text-gray-800 leading-none mb-1">{bill.tenant_name}</h4>
-                                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${style.bg} ${style.text} border border-current/10`}>
-                                                    <Icon className="w-3.5 h-3.5" />
-                                                    <span className="text-[10px] font-black uppercase tracking-tight">{style.label}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${style.bg} ${style.text} border border-current/10`}>
+                                                        <Icon className="w-3.5 h-3.5" />
+                                                        <span className="text-[10px] font-black uppercase tracking-tight">{style.label}</span>
+                                                    </div>
+                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black ${bill.bill_type === 'move_out' ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                                        {bill.bill_type === 'move_out' ? 'บิลย้ายออก' : 'บิลรายเดือน'}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -332,6 +445,17 @@ export default function HistoryClient() {
                                             บันทึกเมื่อ: {format(new Date(bill.created_at), 'dd/MM/yyyy HH:mm')}
                                         </p>
                                         <div className="flex items-center gap-4">
+                                            {bill.bill_type === 'move_out' && ['unpaid', 'overdue', 'waiting_verify'].includes(bill.status) && (
+                                                <button
+                                                    onClick={() => handleConfirmMoveOutSettlement(bill)}
+                                                    disabled={settlingId === bill.id}
+                                                    className="text-[10px] font-black text-emerald-600 hover:text-emerald-700 transition-colors"
+                                                >
+                                                    {settlingId === bill.id
+                                                        ? 'กำลังยืนยัน...'
+                                                        : (bill.total_amount < 0 ? 'ยืนยันคืนเงิน' : 'ยืนยันรับเงิน')}
+                                                </button>
+                                            )}
                                             {bill.status !== 'cancelled' && (
                                                 <button
                                                     onClick={() => {

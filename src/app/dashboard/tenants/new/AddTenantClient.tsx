@@ -583,16 +583,16 @@ export default function AddTenantClient() {
                                 <button
                                     type="button"
                                     onClick={() => setIsContractSelectorOpen(true)}
-                                    className={`flex-1 h-14 rounded-2xl flex items-center justify-center gap-3 font-black text-sm transition-all active:scale-95 group 
+                                    className={`flex-1 h-[4.5rem] rounded-2xl flex items-center justify-center gap-4 px-5 font-black text-lg transition-all active:scale-95 group 
                                         ${tenantName
                                             ? 'bg-yellow-50/80 text-yellow-700 border-2 border-yellow-100'
                                             : 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border-2 border-yellow-200'
                                         }`}
                                 >
                                     {tenantName ? (
-                                        <><DocumentTextIcon className="w-5 h-5" /> เปลี่ยนสัญญาโอนข้อมูล</>
+                                        <><DocumentTextIcon className="w-7 h-7" /> เปลี่ยนสัญญาโอนข้อมูล</>
                                     ) : (
-                                        <><MagnifyingGlassIcon className="w-5 h-5 group-hover:scale-110 transition-transform" /> ดึงข้อมูลจาก "บันทึกสัญญา"</>
+                                        <><MagnifyingGlassIcon className="w-7 h-7 group-hover:scale-110 transition-transform" /> ดึงข้อมูลจาก "บันทึกสัญญา"</>
                                     )}
                                 </button>
                                 

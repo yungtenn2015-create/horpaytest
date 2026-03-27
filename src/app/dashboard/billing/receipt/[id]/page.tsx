@@ -71,16 +71,18 @@ export default function ReceiptPage() {
 
                 // 1.1 Fetch snapshot bill items (extra services)
                 // Fallback safely when table doesn't exist yet (migration not applied).
-                let billItems: any[] | null = null
+                let billItems: any[] = []
                 try {
-                    const { data } = await supabase
+                    const { data, error: billItemsError } = await supabase
                         .from('bill_items')
                         .select('name, amount')
                         .eq('bill_id', bill.id)
                         .order('created_at', { ascending: true })
-                    billItems = data || null
+                    if (!billItemsError && data) {
+                        billItems = data
+                    }
                 } catch (e) {
-                    billItems = null
+                    billItems = []
                 }
 
                 // 2. Fetch Slip from payments table
@@ -144,10 +146,9 @@ export default function ReceiptPage() {
                     { name: 'ค่าเช่าห้องพัก', amount: Number(bill.room_amount || 0) }
                 ]
 
-                // Water Logic
+                // Water / Electric details from utility snapshot (legacy bills)
                 const isFlatWater = settings?.water_billing_type === 'flat' ||
                     (Number(utility?.water_price || 0) > 0 && Number(utility?.water_unit || 0) === 0)
-
                 const waterAmt = Number(utility?.water_price || 0)
                 const electricAmt = Number(utility?.electric_price || 0)
 
@@ -158,7 +159,6 @@ export default function ReceiptPage() {
                         detail: isFlatWater ? '(แบบเหมาจ่าย)' : `มิเตอร์: ${utility?.prev_water_meter || 0} → ${utility?.curr_water_meter || 0} หน่วย`
                     })
                 }
-
                 if (electricAmt > 0 || Number(utility?.electric_unit || 0) > 0) {
                     items.push({
                         name: 'ค่าไฟฟ้า',
@@ -167,32 +167,40 @@ export default function ReceiptPage() {
                     })
                 }
 
-                // IMPORTANT: Issued receipts should be a snapshot.
-                // Use bill.other_amount directly so future settings changes don't mutate old receipts.
-                if (Number(bill.other_amount) > 0) {
-                    if (billItems && billItems.length > 0) {
-                        billItems.forEach((it: any) => {
-                            const name = String(it?.name || '').trim()
-                            const amt = Number(it?.amount) || 0
-                            if (!name || amt <= 0) return
-                            items.push({ name, amount: amt })
-                        })
-                    } else {
-                        items.push({ name: 'ค่าใช้จ่ายอื่นๆ', amount: Number(bill.other_amount) })
-                    }
+                // If bill has no linked utility snapshot, still show utility amount.
+                // But skip this fallback when bill_items exists to avoid duplicate utility lines.
+                if (!utility && billItems.length === 0 && Number(bill.utility_amount || 0) > 0) {
+                    items.push({ name: 'ค่าน้ำ/ค่าไฟ', amount: Number(bill.utility_amount || 0) })
+                }
+
+                // Prefer line-item snapshot when available (supports move-out bill breakdown).
+                if (billItems.length > 0) {
+                    billItems.forEach((it: any) => {
+                        const name = String(it?.name || '').trim()
+                        const amt = Number(it?.amount || 0)
+                        if (!name || amt === 0) return
+                        items.push({ name, amount: amt })
+                    })
+                } else if (Number(bill.other_amount || 0) !== 0) {
+                    // Legacy fallback when bill_items is unavailable.
+                    items.push({ name: 'ค่าใช้จ่ายอื่นๆ', amount: Number(bill.other_amount || 0) })
                 }
 
                 // 7. Format Date Strings
                 const billingDate = parseISO(bill.billing_month)
-                const formattedMonth = format(billingDate, 'MMMM yyyy', { locale: th })
+                const formattedMonth = bill.bill_type === 'move_out'
+                    ? format(new Date(bill.created_at), 'd MMMM yyyy', { locale: th })
+                    : format(billingDate, 'MMMM yyyy', { locale: th })
                 const formattedDate = format(new Date(bill.created_at), 'd MMMM yyyy', { locale: th })
                 const monthYearCode = format(billingDate, 'yyyyMM')
+                const billTypeCode = bill.bill_type === 'move_out' ? 'MOV' : 'MON'
+                const billCode = String(bill.id || '').replace(/-/g, '').slice(-6).toUpperCase()
 
                 const dueDate = bill.due_date ? format(parseISO(bill.due_date), 'd MMMM yyyy', { locale: th }) : '-'
 
                 setData({
                     id: bill.id,
-                    receiptId: `REC-${room?.room_number || '000'}-${monthYearCode}`,
+                    receiptId: `REC-${billTypeCode}-${room?.room_number || '000'}-${monthYearCode}-${billCode}`,
                     date: formattedDate,
                     month: formattedMonth,
                     dueDate: dueDate,
@@ -204,6 +212,8 @@ export default function ReceiptPage() {
                     bankName: settings?.bank_name || '-',
                     bankNo: settings?.bank_account_no || '-',
                     bankAccount: settings?.bank_account_name || dorm?.name || '-',
+                    billType: bill.bill_type === 'move_out' ? 'move_out' : 'monthly',
+                    billStatus: bill.status,
                     items: items,
                     total: Number(bill.total_amount || 0)
                 })

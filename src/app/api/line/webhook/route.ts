@@ -87,6 +87,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
   if (type === 'follow') {
     // Safer approach: do NOT auto-link owner on follow.
     // Show only tenant guidance here (owner onboarding handled separately by manual guide).
+    const dormLabel = config.dorms?.name || 'หอพัก';
     const welcomeFlex = {
       type: 'bubble',
       header: {
@@ -95,7 +96,7 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
         contents: [
           {
             type: 'text',
-            text: `${config.dorms?.name || 'หอพัก'}`,
+            text: `${dormLabel}`,
             weight: 'bold',
             size: 'xl',
             color: '#16A34A'
@@ -149,7 +150,8 @@ async function handleEvent(event: any, config: any, supabaseAdmin: any) {
       }
     };
 
-    await replyFlex(replyToken, config.access_token, 'ยินดีต้อนรับสู่ Horpay', welcomeFlex);
+    // altText ถูก LINE เอาไปโชว์ในรายการแชท/แจ้งเตือน ต้องสอดคล้องกับเนื้อหาในการ์ด (ไม่ใช่ข้อความแยกในแชท)
+    await replyFlex(replyToken, config.access_token, `${dormLabel} — ยินดีต้อนรับค่ะ`, welcomeFlex);
   }
 
   if (type === 'message') {

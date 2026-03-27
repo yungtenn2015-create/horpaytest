@@ -122,10 +122,12 @@ function LIFFBillContent() {
                 const formattedMonth = format(billingDate, 'MMMM yyyy', { locale: th })
                 const formattedDate = format(new Date(bill.created_at), 'd MMMM yyyy', { locale: th })
                 const monthYearCode = format(billingDate, 'yyyyMM')
+                const billTypeCode = bill.bill_type === 'move_out' ? 'MOV' : 'MON'
+                const billCode = String(bill.id || '').replace(/-/g, '').slice(-6).toUpperCase()
                 const dueDate = bill.due_date ? format(parseISO(bill.due_date), 'd MMMM yyyy', { locale: th }) : '-'
 
                 setData({
-                    receiptId: `REC-${room?.room_number || '000'}-${monthYearCode}`,
+                    receiptId: `REC-${billTypeCode}-${room?.room_number || '000'}-${monthYearCode}-${billCode}`,
                     date: formattedDate,
                     month: formattedMonth,
                     dueDate: dueDate,
@@ -137,6 +139,8 @@ function LIFFBillContent() {
                     bankName: settings?.bank_name || '-',
                     bankNo: settings?.bank_account_no || '-',
                     bankAccount: settings?.bank_account_name || dorm?.name || '-',
+                    billType: bill.bill_type === 'move_out' ? 'move_out' : 'monthly',
+                    billStatus: bill.status,
                     items: items,
                     total: Number(bill.total_amount || 0)
                 })

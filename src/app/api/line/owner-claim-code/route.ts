@@ -8,9 +8,17 @@ function generate6DigitCode() {
 }
 
 export async function POST(req: Request) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  if (!serviceRoleKey || serviceRoleKey === 'your-service-role-key') {
+    return NextResponse.json(
+      { success: false, error: 'ยังไม่ได้ตั้งค่า SUPABASE_SERVICE_ROLE_KEY ในไฟล์ .env.local' },
+      { status: 500 }
+    )
+  }
+
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    serviceRoleKey
   )
 
   try {

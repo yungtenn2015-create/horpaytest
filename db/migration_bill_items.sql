@@ -20,3 +20,5 @@ CREATE TABLE IF NOT EXISTS public.bill_items (
 
 CREATE INDEX IF NOT EXISTS bill_items_bill_id_idx ON public.bill_items(bill_id);
 
+-- ถัดไป: รัน migration_bill_items_rls.sql (หลัง rls_policies.sql ที่มี is_dorm_owner)
+-- เพื่อให้เจ้าของหอ insert รายการค่าบริการลง bill_items ได้จากแอป

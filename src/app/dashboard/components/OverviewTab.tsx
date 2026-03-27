@@ -14,7 +14,8 @@ import {
     HomeIcon,
     UsersIcon,
     ArrowPathIcon,
-    CheckCircleIcon
+    CheckCircleIcon,
+    DocumentTextIcon
 } from '@heroicons/react/24/outline'
 import {
     BanknotesIcon as BanknotesSolid
@@ -127,6 +128,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         rooms.forEach((room) => {
             if (waitingVerifyRoomIds.has(room.id)) count++;
             if (overdueRoomIds.has(room.id)) count++;
+            if (movingOutRoomIds.has(room.id)) count++;
 
             const activeTenant = room.tenants?.find((t) => t.status === 'active');
             if (activeTenant?.planned_move_out_date) {
@@ -143,7 +145,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     const renderNotificationsPopover = () => {
         if (!isNotificationsOpen) return null;
 
-        const notifications: { id: string; type: 'verify' | 'overdue' | 'move_out'; title: string; description: string; roomId: string; date?: string }[] = [];
+        const notifications: { id: string; type: 'verify' | 'overdue' | 'move_out' | 'move_out_bill'; title: string; description: string; roomId: string; date?: string }[] = [];
 
         rooms.forEach(room => {
             if (waitingVerifyRoomIds.has(room.id)) {
@@ -161,6 +163,15 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                     type: 'overdue',
                     title: `ห้อง ${room.room_number} • ค้างชำระ`,
                     description: 'เกินกำหนดชำระเงินแล้ว กรุณาติดตามการชำระ',
+                    roomId: room.id
+                });
+            }
+            if (movingOutRoomIds.has(room.id)) {
+                notifications.push({
+                    id: `move-out-bill-${room.id}`,
+                    type: 'move_out_bill',
+                    title: `ห้อง ${room.room_number} • มีบิลย้ายออกค้าง`,
+                    description: 'กรุณาไปยืนยันสรุปยอด/จัดการบิลย้ายออกที่ประวัติบิล',
                     roomId: room.id
                 });
             }
@@ -219,17 +230,22 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                                         key={notif.id}
                                         onClick={() => {
                                             setIsNotificationsOpen(false);
+                                            if (notif.type === 'move_out_bill') {
+                                                router.push('/dashboard/history');
+                                                return;
+                                            }
                                             router.push(`/dashboard/billing?roomId=${notif.roomId}`);
                                         }}
                                         className="w-full text-left p-4 rounded-2xl hover:bg-gray-50 transition-all group flex gap-4"
                                     >
                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border-2 border-white shadow-sm ${notif.type === 'verify' ? 'bg-sky-50 text-sky-500' :
                                             notif.type === 'overdue' ? 'bg-orange-50 text-orange-500' :
-                                                'bg-amber-50 text-amber-500'
+                                                notif.type === 'move_out_bill' ? 'bg-purple-50 text-purple-500' : 'bg-amber-50 text-amber-500'
                                             }`}>
                                             {notif.type === 'verify' && <ClockIcon className="w-5 h-5 stroke-[2.5]" />}
                                             {notif.type === 'overdue' && <ExclamationTriangleIcon className="w-5 h-5 stroke-[2.5]" />}
                                             {notif.type === 'move_out' && <ArrowRightOnRectangleIcon className="w-5 h-5 stroke-[2.5]" />}
+                                            {notif.type === 'move_out_bill' && <DocumentTextIcon className="w-5 h-5 stroke-[2.5]" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-black text-gray-800 leading-tight group-hover:text-primary transition-colors">{notif.title}</p>

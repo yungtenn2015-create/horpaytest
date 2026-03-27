@@ -196,8 +196,10 @@ export default function BillingClient() {
 
                     // Match utils and bill strictly to the active tenant to avoid inheriting old data
                     const utils = utilsData?.find(u => u.room_id === room.id && u.tenant_id === activeTenant?.id)
-                    // BROAD FIX: Check if ANY non-cancelled bill exists for this room/month to prevent duplicate DB errors
-                    const bill = billsData?.find(b => b.room_id === room.id)
+                    // Match bill to the active tenant (avoid showing old tenant's bill after room turnover)
+                    const bill = billsData?.find(
+                        (b: any) => b.room_id === room.id && b.tenant_id === activeTenant?.id
+                    )
                     const contract = contractsData?.find(c => c.tenant_id === activeTenant?.id)
 
                     const isVacant = room.status === 'available' || !activeTenant
@@ -364,43 +366,130 @@ export default function BillingClient() {
         try {
             const monthStart = format(selectedDate, 'yyyy-MM-01')
             const total = item.rent + item.water + item.electricity + item.others
+            const dueDateStr = (() => {
+                const year = selectedDate.getFullYear()
+                const month = selectedDate.getMonth()
+                const targetMonth = dueDay < billingDay ? month + 1 : month
+                const lastDay = new Date(year, targetMonth + 1, 0).getDate()
+                const finalDay = Math.min(dueDay, lastDay)
+                return format(new Date(year, targetMonth, finalDay), 'yyyy-MM-dd')
+            })()
 
-            // 1. Create Bill Record
-            const { data: newBill, error: billError } = await supabase
+            const { data: existingRows, error: existingErr } = await supabase
                 .from('bills')
-                .insert({
-                    tenant_id: item.tenantId,
-                    room_id: item.roomId,
-                    utility_id: item.utilityId,
-                    billing_month: monthStart,
-                    room_amount: item.rent,
-                    utility_amount: item.water + item.electricity,
-                    other_amount: item.others,
-                    total_amount: total,
-                    due_date: (() => {
-                        const year = selectedDate.getFullYear();
-                        const month = selectedDate.getMonth();
-                        const targetMonth = dueDay < billingDay ? month + 1 : month;
-                        const lastDay = new Date(year, targetMonth + 1, 0).getDate();
-                        const finalDay = Math.min(dueDay, lastDay);
-                        return format(new Date(year, targetMonth, finalDay), 'yyyy-MM-dd');
-                    })(),
-                    status: 'unpaid'
-                })
-                .select()
-                .single()
+                .select('id, status, created_at, room_amount, utility_amount, other_amount, total_amount')
+                .eq('tenant_id', item.tenantId)
+                .eq('room_id', item.roomId)
+                .eq('billing_month', monthStart)
+                .order('created_at', { ascending: false })
 
-            if (billError) {
-                if (billError.code === '23505') {
-                    throw new Error('ไม่สามารถออกบิลซ้ำได้: มีบิลในห้องนี้/เดือนนี้อยู่แล้ว (อาจเป็นของผู้เช่าคนเก่า หรือออกไปแล้วแต่ยังไม่ได้ยกเลิก) หากต้องการออกใหม่ กรุณาลบบิลเดิมออกก่อน')
+            if (existingErr) throw existingErr
+
+            let newBill: { id: string }
+            const rows = (existingRows || []) as Array<{
+                id: string
+                status: string
+                created_at: string
+                room_amount: number
+                utility_amount: number
+                other_amount: number
+                total_amount: number
+            }>
+            const existingActive = rows.find((r) => r.status !== 'cancelled')
+            const existingCancelled = rows.find((r) => r.status === 'cancelled')
+
+            if (existingActive) {
+                throw new Error('ไม่สามารถออกบิลซ้ำได้: มีบิลในห้องนี้/เดือนนี้อยู่แล้ว (ยังไม่ถูกยกเลิก) หากต้องการออกใหม่ กรุณายกเลิกบิลเดิมก่อน')
+            } else if (existingCancelled) {
+                    // Accounting rule: issued bill amounts are immutable.
+                    // If owner changed inputs, don't silently override old cancelled bill amounts.
+                    const nextRoom = Number(item.rent || 0)
+                    const nextUtility = Number(item.water || 0) + Number(item.electricity || 0)
+                    const nextOther = Number(item.others || 0)
+                    const nextTotal = Number(total || 0)
+
+                    const isSameAmount =
+                        Number(existingCancelled.room_amount || 0) === nextRoom &&
+                        Number(existingCancelled.utility_amount || 0) === nextUtility &&
+                        Number(existingCancelled.other_amount || 0) === nextOther &&
+                        Number(existingCancelled.total_amount || 0) === nextTotal
+
+                    if (!isSameAmount) {
+                        throw new Error(
+                            [
+                                'ห้องนี้เคยมีบิลเดือนนี้ในระบบแล้ว (แม้จะยกเลิกไปก็ยังมีประวัติอยู่)',
+                                'ยอดในระบบจึงไม่ตรงกับที่คำนวณตอนนี้ — ระบบจะไม่ยอมเปลี่ยนตัวเลขในใบเก่าให้ทับเอง',
+                                '',
+                                'ทำได้อย่างใดอย่างหนึ่ง:',
+                                '• ไปดูที่ประวัติบิล ว่ามีบิลเดือนนี้เหลืออยู่หรือไม่',
+                                '• หรือลองเลือกเดือนอื่นที่ยังไม่เคยออกบิล',
+                            ].join('\n')
+                        )
+                    }
+
+                    const { data: updated, error: updErr } = await supabase
+                        .from('bills')
+                        .update({
+                            utility_id: item.utilityId,
+                            due_date: dueDateStr,
+                            status: 'unpaid',
+                            paid_at: null
+                        })
+                        .eq('id', existingCancelled.id)
+                        .select('id')
+                        .single()
+                    if (updErr) throw updErr
+                    if (!updated?.id) throw new Error('ไม่สามารถเปิดบิลที่ยกเลิกแล้วใหม่ได้')
+                    newBill = { id: updated.id }
+            } else {
+                const { data: inserted, error: billError } = await supabase
+                    .from('bills')
+                    .insert({
+                        tenant_id: item.tenantId,
+                        room_id: item.roomId,
+                        utility_id: item.utilityId,
+                        bill_type: 'monthly',
+                        billing_month: monthStart,
+                        room_amount: item.rent,
+                        utility_amount: item.water + item.electricity,
+                        other_amount: item.others,
+                        total_amount: total,
+                        due_date: dueDateStr,
+                        status: 'unpaid'
+                    })
+                    .select('id')
+                    .single()
+
+                if (billError) {
+                    if (billError.code === '23505') {
+                        throw new Error(
+                            'ไม่สามารถออกบิลซ้ำได้: มีบิลเดือนนี้อยู่ในระบบแล้ว (อาจเป็นข้อจำกัด unique ของฐานข้อมูล หรือบิลที่ยกเลิก/ผู้เช่าคนก่อน) ลองรีเฟรชหน้า หรือตรวจบิลใน Supabase'
+                        )
+                    }
+                    throw billError
                 }
-                throw billError
+                if (!inserted?.id) throw new Error('สร้างบิลไม่สำเร็จ')
+                newBill = { id: inserted.id }
             }
 
-            // 1.1 Snapshot extra services into bill_items (so issued receipts won't change later)
+            // 1.1 Snapshot extra services into bill_items (replace old lines so re-opened bills stay correct)
             const extraItems: BillItemRow[] = (dormServices || [])
                 .map((s) => ({ name: String(s.name || '').trim(), amount: Number(s.price) || 0 }))
                 .filter((s) => !!s.name && s.amount > 0)
+
+            {
+                const { error: delItemsErr } = await supabase.from('bill_items').delete().eq('bill_id', newBill.id)
+                if (delItemsErr) {
+                    const msg = String(delItemsErr.message || '')
+                    const code = (delItemsErr as any).code
+                    const isMissingTable =
+                        code === '42P01' ||
+                        msg.toLowerCase().includes('could not find the table') ||
+                        msg.toLowerCase().includes('relation') ||
+                        msg.toLowerCase().includes('schema cache')
+                    if (!isMissingTable) throw delItemsErr
+                }
+            }
 
             if (extraItems.length > 0) {
                 const { error: itemsErr } = await supabase
@@ -412,7 +501,6 @@ export default function BillingClient() {
                     })))
 
                 if (itemsErr) {
-                    // If migration not applied yet, don't block issuing the bill.
                     const msg = String(itemsErr.message || '')
                     const code = (itemsErr as any).code
                     const isMissingTable = code === '42P01' || msg.toLowerCase().includes('could not find the table') || msg.toLowerCase().includes('relation') || msg.toLowerCase().includes('schema cache')
@@ -434,7 +522,27 @@ export default function BillingClient() {
 
             await fetchData()
         } catch (err: any) {
-            alert(err.message || 'เกิดข้อผิดพลาดในการออกบิล')
+            const raw = String(err?.message || '')
+            const low = raw.toLowerCase()
+            let friendly = raw || 'เกิดข้อผิดพลาดในการออกบิล'
+            if (raw.includes('ห้ามแก้ยอดเงินในบิลหลังสร้างแล้ว')) {
+                friendly = [
+                    'ใบแจ้งหนี้ฉบับนี้ถูกออกไปแล้วในระบบ',
+                    'ตัวเลขค่าเช่า / ยอดรวมเลยถูกล็อกไว้ — ไม่ให้แก้ภายหลังเหมือนแก้เอกสารที่ออกแล้ว',
+                    '',
+                    'ถ้าต้องการยอดใหม่:',
+                    '• ยกเลิกบิลฉบับนี้ในระบบ (ถ้าระบบให้ยกเลิกได้)',
+                    '• แล้วค่อยออกบิลใหม่ตามยอดที่ถูกต้อง',
+                ].join('\n')
+            } else if (low.includes('row-level security') || low.includes('violates row-level security')) {
+                friendly = [
+                    'สิทธิ์บันทึกรายการค่าบริการเพิ่มเติม (bill_items) ยังไม่เปิดในระบบ',
+                    '',
+                    'ให้ผู้ดูแลรันสคริปต์: db/migration_bill_items_rls.sql ใน Supabase SQL Editor',
+                    'จากนั้นลองกดออกบิลอีกครั้ง',
+                ].join('\n')
+            }
+            alert(friendly)
         } finally {
             setIssuing(null)
         }

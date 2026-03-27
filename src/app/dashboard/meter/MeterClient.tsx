@@ -683,7 +683,7 @@ export default function MeterClient() {
                                                                         className="w-full bg-transparent text-gray-700 font-black focus:outline-none text-right text-xs"
                                                                         placeholder="0"
                                                                     />
-                                                                    {p.isInitial && <span className="text-[8px] text-green-600 font-black ml-1 shrink-0">แรก</span>}
+                                                                    {p.isInitial && <span className="text-[8px] text-green-600 font-black ml-1 shrink-0"></span>}
                                                                 </div>
                                                             </div>
                                                             <input
@@ -738,7 +738,7 @@ export default function MeterClient() {
                                                                         className="w-full bg-transparent text-gray-700 font-black focus:outline-none text-right text-xs"
                                                                         placeholder="0"
                                                                     />
-                                                                    {p.isInitial && <span className="text-[8px] text-green-600 font-black ml-1 shrink-0">แรก</span>}
+                                                                    {p.isInitial && <span className="text-[8px] text-green-600 font-black ml-1 shrink-0"></span>}
                                                                 </div>
                                                             </div>
                                                             <input
