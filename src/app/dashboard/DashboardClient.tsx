@@ -857,10 +857,23 @@ export default function DashboardClient() {
                 }
             });
 
-            // 3.1 Check for Moving Out Status (Notice Given)
+            // 3.1 Check for Moving Out Status
+            // - Notice already given (planned_move_out_date)
+            // - OR move-out bill exists and still waiting for settlement confirmation
             activeRooms.forEach(room => {
                 const activeTenant = (room.tenants as any[])?.find(t => t.status === 'active');
                 if (activeTenant?.planned_move_out_date) {
+                    movingOutIdsSet.add(room.id);
+                    return;
+                }
+
+                const hasPendingMoveOutBill = (monthBills || []).some((b: any) =>
+                    b.room_id === room.id &&
+                    b.tenant_id === activeTenant?.id &&
+                    String(b.bill_type || '') === 'move_out' &&
+                    ['unpaid', 'overdue', 'waiting_verify'].includes(String(b.status || '').toLowerCase())
+                );
+                if (hasPendingMoveOutBill) {
                     movingOutIdsSet.add(room.id);
                 }
             });

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import { format, subMonths, addMonths, startOfMonth } from 'date-fns'
 import {
@@ -35,6 +35,7 @@ interface Bill {
 
 export default function HistoryClient() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const [loading, setLoading] = useState(true)
     const [bills, setBills] = useState<Bill[]>([])
     const [selectedDate, setSelectedDate] = useState(startOfMonth(new Date()))
@@ -43,7 +44,6 @@ export default function HistoryClient() {
     const [billTypeFilter, setBillTypeFilter] = useState<'all' | 'monthly' | 'move_out'>('all')
     const [dormName, setDormName] = useState('รายการประวัติบิล')
     const [cancellingId, setCancellingId] = useState<string | null>(null)
-    const [settlingId, setSettlingId] = useState<string | null>(null)
     const [showCancelModal, setShowCancelModal] = useState(false)
     const [billToCancel, setBillToCancel] = useState<Bill | null>(null)
 
@@ -55,6 +55,13 @@ export default function HistoryClient() {
     useEffect(() => {
         fetchHistory()
     }, [selectedDate])
+
+    useEffect(() => {
+        const tab = searchParams.get('type')
+        if (tab === 'move_out' || tab === 'monthly' || tab === 'all') {
+            setBillTypeFilter(tab)
+        }
+    }, [searchParams])
 
     async function fetchHistory() {
         setLoading(true)
@@ -190,44 +197,6 @@ export default function HistoryClient() {
         }
     }
 
-    async function handleConfirmMoveOutSettlement(bill: Bill) {
-        if (settlingId) return
-        setSettlingId(bill.id)
-        const supabase = createClient()
-
-        try {
-            // 1) Close move-out bill itself
-            const { error } = await supabase
-                .from('bills')
-                .update({
-                    status: 'paid',
-                    paid_at: new Date().toISOString()
-                })
-                .eq('id', bill.id)
-            if (error) throw error
-
-            // 2) If settlement is confirmed, close outstanding monthly bills of this tenant.
-            // This supports the flow "หักจากเงินมัดจำ" so monthly bills won't stay waiting.
-            const { error: settleMonthlyErr } = await supabase
-                .from('bills')
-                .update({
-                    status: 'paid',
-                    paid_at: new Date().toISOString()
-                })
-                .eq('tenant_id', bill.tenant_id)
-                .eq('bill_type', 'monthly')
-                .in('status', ['unpaid', 'overdue', 'waiting_verify'])
-                .gt('total_amount', 0)
-            if (settleMonthlyErr) throw settleMonthlyErr
-
-            await fetchHistory()
-        } catch (err) {
-            console.error('Error confirming move-out settlement:', err)
-            alert('ไม่สามารถยืนยันสรุปยอดบิลย้ายออกได้')
-        } finally {
-            setSettlingId(null)
-        }
-    }
 
     const filteredBills = bills.filter(bill => {
         const matchesSearch = bill.room_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -445,17 +414,6 @@ export default function HistoryClient() {
                                             บันทึกเมื่อ: {format(new Date(bill.created_at), 'dd/MM/yyyy HH:mm')}
                                         </p>
                                         <div className="flex items-center gap-4">
-                                            {bill.bill_type === 'move_out' && ['unpaid', 'overdue', 'waiting_verify'].includes(bill.status) && (
-                                                <button
-                                                    onClick={() => handleConfirmMoveOutSettlement(bill)}
-                                                    disabled={settlingId === bill.id}
-                                                    className="text-[10px] font-black text-emerald-600 hover:text-emerald-700 transition-colors"
-                                                >
-                                                    {settlingId === bill.id
-                                                        ? 'กำลังยืนยัน...'
-                                                        : (bill.total_amount < 0 ? 'ยืนยันคืนเงิน' : 'ยืนยันรับเงิน')}
-                                                </button>
-                                            )}
                                             {bill.status !== 'cancelled' && (
                                                 <button
                                                     onClick={() => {

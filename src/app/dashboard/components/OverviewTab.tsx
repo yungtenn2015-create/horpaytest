@@ -230,8 +230,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                                         key={notif.id}
                                         onClick={() => {
                                             setIsNotificationsOpen(false);
-                                            if (notif.type === 'move_out_bill') {
-                                                router.push('/dashboard/history');
+                                            if (notif.type === 'move_out_bill' || notif.type === 'move_out') {
+                                                router.push(`/dashboard/move-out?roomId=${notif.roomId}`);
                                                 return;
                                             }
                                             router.push(`/dashboard/billing?roomId=${notif.roomId}`);
@@ -457,11 +457,17 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                     </div>
 
                     <div className="grid gap-3">
-                        {rooms.filter(r => pendingRoomIds.has(r.id)).length > 0 ? (
-                            rooms.filter(r => pendingRoomIds.has(r.id)).slice(0, 5).map((room) => (
+                        {rooms.filter(r => pendingRoomIds.has(r.id) || movingOutRoomIds.has(r.id)).length > 0 ? (
+                            rooms.filter(r => pendingRoomIds.has(r.id) || movingOutRoomIds.has(r.id)).slice(0, 5).map((room) => (
                                 <div
                                     key={room.id}
-                                    onClick={() => router.push('/dashboard/billing')}
+                                    onClick={() => {
+                                        if (movingOutRoomIds.has(room.id)) {
+                                            router.push(`/dashboard/move-out?roomId=${room.id}`)
+                                            return
+                                        }
+                                        router.push('/dashboard/billing')
+                                    }}
                                     className="bg-white px-5 py-4 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between group hover:border-primary/30 hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                                 >
                                     <div className="flex items-center gap-4">
@@ -476,7 +482,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        {waitingVerifyRoomIds.has(room.id) ? (
+                                        {movingOutRoomIds.has(room.id) ? (
+                                            <div className="h-8 px-3 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center">
+                                                <span className="text-[10px] font-black uppercase text-rose-600">รอยืนยันย้ายออก</span>
+                                            </div>
+                                        ) : waitingVerifyRoomIds.has(room.id) ? (
                                             <div className="h-8 px-3 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center">
                                                 <span className="text-[10px] font-black uppercase text-sky-600">รอตรวจสอบ</span>
                                             </div>

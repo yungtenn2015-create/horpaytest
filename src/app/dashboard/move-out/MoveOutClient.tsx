@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 
 import {
@@ -70,6 +70,7 @@ interface IssuedMoveOutSnapshot {
 
 export default function MoveOutClient() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const [loading, setLoading] = useState(true)
     const [tenants, setTenants] = useState<Tenant[]>([])
     const [searchQuery, setSearchQuery] = useState('')
@@ -78,6 +79,7 @@ export default function MoveOutClient() {
     const [showMoveOutModal, setShowMoveOutModal] = useState(false)
     const [isMovingOut, setIsMovingOut] = useState(false)
     const [isIssuingMoveOutBill, setIsIssuingMoveOutBill] = useState(false)
+    const [isSettlingMoveOutBill, setIsSettlingMoveOutBill] = useState(false)
     const [moveOutBillId, setMoveOutBillId] = useState<string | null>(null)
     const [moveOutBillStatus, setMoveOutBillStatus] = useState<string | null>(null)
     const [issuedMoveOutSnapshot, setIssuedMoveOutSnapshot] = useState<IssuedMoveOutSnapshot | null>(null)
@@ -92,6 +94,7 @@ export default function MoveOutClient() {
     const [transferErrorMsg, setTransferErrorMsg] = useState('')
     const [loadingTransferRooms, setLoadingTransferRooms] = useState(false)
     const [isTransferringRoom, setIsTransferringRoom] = useState(false)
+    const [autoOpenedRoomId, setAutoOpenedRoomId] = useState<string | null>(null)
 
     // Debt Check States
     const [pendingBills, setPendingBills] = useState<any[]>([])
@@ -444,7 +447,7 @@ export default function MoveOutClient() {
             if (existingMoveOutBill?.id) {
                 setMoveOutBillId(existingMoveOutBill.id)
                 setMoveOutBillStatus(existingMoveOutBill.status || null)
-                throw new Error('มีบิลปิดบัญชีอยู่แล้ว กรุณายกเลิกบิลเดิมก่อน หรือเปิดใบเดิมจากปุ่ม "ไปดูบิลในประวัติบิล"')
+                throw new Error('มีบิลปิดบัญชีอยู่แล้ว กรุณาใช้ปุ่ม "ยืนยันรับเงินแล้ว/ยืนยันคืนเงินแล้ว" ในหน้านี้ก่อน หรือยกเลิกบิลเดิมแล้วค่อยออกใหม่')
             }
 
             // Find first available billing_month (first day of month) to avoid unique clash.
@@ -539,6 +542,43 @@ export default function MoveOutClient() {
         }
     }
 
+    const handleSettleMoveOutBill = async () => {
+        if (!moveOutBillId || !selectedTenant || isSettlingMoveOutBill) return
+        setIsSettlingMoveOutBill(true)
+        setErrorMsg('')
+        const supabase = createClient()
+        try {
+            // 1) Mark move-out bill as paid/settled.
+            const { error: moveOutErr } = await supabase
+                .from('bills')
+                .update({
+                    status: 'paid',
+                    paid_at: new Date().toISOString()
+                })
+                .eq('id', moveOutBillId)
+            if (moveOutErr) throw moveOutErr
+
+            // 2) Close outstanding monthly bills for this tenant as settled by deposit/move-out.
+            const { error: monthlyErr } = await supabase
+                .from('bills')
+                .update({
+                    status: 'paid',
+                    paid_at: new Date().toISOString()
+                })
+                .eq('tenant_id', selectedTenant.id)
+                .eq('bill_type', 'monthly')
+                .in('status', ['unpaid', 'overdue', 'waiting_verify'])
+                .gt('total_amount', 0)
+            if (monthlyErr) throw monthlyErr
+
+            setMoveOutBillStatus('paid')
+        } catch (err: any) {
+            setErrorMsg(err.message || 'ไม่สามารถยืนยันสรุปยอดบิลย้ายออกได้')
+        } finally {
+            setIsSettlingMoveOutBill(false)
+        }
+    }
+
     const handleCancelNotice = async () => {
         if (!selectedTenant || isSubmittingNotice) return
         setIsSubmittingNotice(true)
@@ -584,6 +624,57 @@ export default function MoveOutClient() {
             setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการบันทึก')
         } finally {
             setIsSubmittingNotice(false)
+        }
+    }
+
+    const handleCancelMoveOutFlow = async () => {
+        if (!selectedTenant || isMovingOut) return
+        setIsMovingOut(true)
+        setErrorMsg('')
+        const supabase = createClient()
+        try {
+            // 1) Cancel existing move-out bill if it is not finalized.
+            if (moveOutBillId) {
+                const { data: bill, error: getBillErr } = await supabase
+                    .from('bills')
+                    .select('status')
+                    .eq('id', moveOutBillId)
+                    .maybeSingle()
+                if (getBillErr) throw getBillErr
+
+                const billStatus = String(bill?.status || '')
+                if (billStatus === 'paid') {
+                    throw new Error('บิลย้ายออกใบนี้ปิดยอดแล้ว กรุณาจัดการที่ประวัติบิลก่อนยกเลิกการย้ายออก')
+                }
+
+                if (['unpaid', 'overdue', 'waiting_verify'].includes(billStatus)) {
+                    const { error: cancelBillErr } = await supabase
+                        .from('bills')
+                        .update({ status: 'cancelled' })
+                        .eq('id', moveOutBillId)
+                    if (cancelBillErr) throw cancelBillErr
+                }
+            }
+
+            // 2) Clear planned move-out date
+            const { error: tenantErr } = await supabase
+                .from('tenants')
+                .update({ planned_move_out_date: null })
+                .eq('id', selectedTenant.id)
+            if (tenantErr) throw tenantErr
+
+            setShowMoveOutModal(false)
+            setShowDebtWarning(false)
+            setPendingBills([])
+            setSelectedTenant(null)
+            setMoveOutBillId(null)
+            setMoveOutBillStatus(null)
+            setIssuedMoveOutSnapshot(null)
+            await fetchData()
+        } catch (err: any) {
+            setErrorMsg(err.message || 'ไม่สามารถยกเลิกการย้ายออกได้')
+        } finally {
+            setIsMovingOut(false)
         }
     }
 
@@ -688,6 +779,18 @@ export default function MoveOutClient() {
             t.rooms.room_number.toLowerCase().includes(query)
         )
     })
+
+    useEffect(() => {
+        const roomId = searchParams.get('roomId')
+        if (!roomId || autoOpenedRoomId === roomId || tenants.length === 0 || isCheckingDebt) return
+
+        const tenant = tenants.find((t) => t.room_id === roomId)
+        if (!tenant) return
+
+        setSearchQuery(tenant.rooms.room_number)
+        setAutoOpenedRoomId(roomId)
+        handleCheckDebt(tenant)
+    }, [searchParams, tenants, autoOpenedRoomId, isCheckingDebt])
 
     if (loading) {
         return (
@@ -988,7 +1091,7 @@ export default function MoveOutClient() {
                                 </button>
                                 {transferErrorMsg.includes('บิลค้าง') && (
                                     <button
-                                        onClick={() => router.push('/dashboard/history')}
+                                        onClick={() => router.push('/dashboard/history?type=move_out')}
                                         className="w-full h-12 bg-white border border-purple-200 text-purple-700 font-black rounded-2xl shadow-sm hover:bg-purple-50 transition-all"
                                     >
                                         ไปหน้าประวัติบิล
@@ -1011,25 +1114,13 @@ export default function MoveOutClient() {
                         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowMoveOutModal(false)} />
                         <div className="relative w-full max-w-md max-h-[min(92dvh,calc(100dvh-1rem))] sm:max-h-[85dvh] flex flex-col bg-white rounded-[2.5rem] sm:rounded-[2.5rem] rounded-b-none sm:rounded-b-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                             <div className="shrink-0 bg-[#10B981] p-5 sm:p-6 text-white">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p className="text-[11px] font-black uppercase tracking-widest text-emerald-100">
-                                            Move-Out Settlement
-                                        </p>
-                                        <h3 className="text-2xl font-black tracking-tight mt-1">บิลปิดบัญชี (ย้ายออก)</h3>
-                                        <p className="text-emerald-50 text-xs font-bold mt-2">
-                                            ห้อง {selectedTenant.rooms.room_number} • {selectedTenant.name}
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => router.push('/dashboard/history')}
-                                        className="h-10 px-3.5 rounded-2xl bg-[#F4EEFF] hover:bg-[#EEE3FF] border border-[#E7D9FF] text-[#7C3AED] text-[11px] font-black flex items-center gap-1.5 whitespace-nowrap shadow-sm shadow-purple-100/60"
-                                    >
-                                        <ClockIcon className="w-4 h-4" />
-                                        ประวัติบิล
-                                    </button>
-                                </div>
+                                <p className="text-[11px] font-black uppercase tracking-widest text-emerald-100">
+                                    Move-Out Settlement
+                                </p>
+                                <h3 className="text-2xl font-black tracking-tight mt-1">บิลปิดบัญชี (ย้ายออก)</h3>
+                                <p className="text-emerald-50 text-xs font-bold mt-2">
+                                    ห้อง {selectedTenant.rooms.room_number} • {selectedTenant.name}
+                                </p>
                             </div>
 
                             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-5 sm:px-6 pt-5 pb-4 space-y-4">
@@ -1318,6 +1409,17 @@ export default function MoveOutClient() {
                                         ดูรายละเอียดบิลและบันทึก
                                     </button>
                                 )}
+                                {moveOutBillId && moveOutBillStatus !== 'paid' && (
+                                    <button
+                                        onClick={handleSettleMoveOutBill}
+                                        disabled={isSettlingMoveOutBill}
+                                        className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-lg shadow-emerald-100 transition-all active:scale-95 disabled:opacity-50"
+                                    >
+                                        {isSettlingMoveOutBill
+                                            ? 'กำลังยืนยัน...'
+                                            : (summaryNet < 0 ? 'ยืนยันคืนเงินแล้ว' : 'ยืนยันรับเงินแล้ว')}
+                                    </button>
+                                )}
                                 <button
                                     onClick={handleMoveOut}
                                     disabled={isMovingOut || !moveOutBillId || moveOutBillStatus !== 'paid'}
@@ -1333,9 +1435,16 @@ export default function MoveOutClient() {
                                 )}
                                 {moveOutBillId && moveOutBillStatus !== 'paid' && (
                                     <p className="text-[11px] text-center font-bold text-amber-600 -mt-1">
-                                        กรุณาไปยืนยันสรุปยอดบิลย้ายออกในหน้าประวัติบิลก่อน จึงจะยืนยันการย้ายออกได้
+                                        กรุณากดยืนยันรับเงิน/คืนเงินในหน้านี้ก่อน จึงจะยืนยันการย้ายออกได้
                                     </p>
                                 )}
+                                <button
+                                    onClick={handleCancelMoveOutFlow}
+                                    disabled={isMovingOut}
+                                    className="w-full h-14 bg-white border-2 border-red-100 text-red-500 hover:bg-red-50 font-black rounded-2xl transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                    {isMovingOut ? 'กำลังยกเลิก...' : 'ยกเลิกย้ายออก'}
+                                </button>
                                 <button onClick={() => { setShowMoveOutModal(false); setMoveOutBillId(null); setMoveOutBillStatus(null) }} className="w-full h-14 bg-white border border-gray-100 text-gray-400 font-black rounded-2xl shadow-sm hover:bg-gray-50 transition-all">ยกเลิก</button>
                             </div>
                         </div>
@@ -1385,7 +1494,7 @@ export default function MoveOutClient() {
 
                             <div className="p-8 space-y-3 bg-gray-50">
                                 <button
-                                    onClick={() => router.push('/dashboard/history')}
+                                    onClick={() => router.push('/dashboard/history?type=move_out')}
                                     className="w-full h-14 bg-gray-800 hover:bg-black text-white font-black rounded-2xl shadow-lg shadow-gray-200 transition-all active:scale-95"
                                 >
                                     ไปหน้าประวัติบิล

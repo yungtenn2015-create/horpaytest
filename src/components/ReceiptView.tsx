@@ -51,10 +51,14 @@ interface ReceiptViewProps {
 
 const ReceiptView = forwardRef<HTMLDivElement, ReceiptViewProps>(({ data, slipUrl }, ref) => {
     if (!data) return null;
-    const isSettledRefund =
+    // Hide transfer destination fields for refund scenario:
+    // - move-out bill
+    // - total is negative (owner must refund tenant)
+    // This should not depend on bill status because UI must never show
+    // "transfer due date/bank" when refund is happening.
+    const isRefundScenario =
         data.billType === 'move_out' &&
-        Number(data.total || 0) < 0 &&
-        data.billStatus === 'paid'
+        Number(data.total || 0) < 0
 
     return (
         <div
@@ -130,11 +134,11 @@ const ReceiptView = forwardRef<HTMLDivElement, ReceiptViewProps>(({ data, slipUr
                         )}
                     </div>
                     <p className={`text-4xl font-black ${Number(data.total) < 0 ? 'text-amber-600' : 'text-[#10B981]'}`}>
-                        {(Number(data.total) || 0).toLocaleString()}
+                        {Math.abs(Number(data.total) || 0).toLocaleString()}
                     </p>
                 </div>
 
-                {!isSettledRefund && (
+                {!isRefundScenario && (
                     <>
                         {/* Due Date Box: Match LINE Style */}
                         <div className="bg-[#FEF2F2] rounded-2xl p-4 mb-8 text-center border border-red-100">
