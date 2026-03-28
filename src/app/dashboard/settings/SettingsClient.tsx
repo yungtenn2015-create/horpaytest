@@ -18,11 +18,13 @@ import {
 
 function normalizeBillingDay(value: unknown, fallback: number): number {
     const fb = Math.min(31, Math.max(1, Math.floor(Number(fallback)) || 1))
-    if (value === null || value === undefined) return fb
+    if (value === null || value === undefined || value === '') return fb
     const n = Math.floor(Number(value))
     if (!Number.isFinite(n) || n < 1) return fb
     return Math.min(31, n)
 }
+
+type BillingDayForm = number | ''
 
 export default function SettingsClient() {
     const router = useRouter()
@@ -38,7 +40,13 @@ export default function SettingsClient() {
         contact_number: ''
     })
     
-    const [settingsData, setSettingsData] = useState({
+    const [settingsData, setSettingsData] = useState<{
+        bank_name: string
+        bank_account_no: string
+        bank_account_name: string
+        billing_day: BillingDayForm
+        payment_due_day: BillingDayForm
+    }>({
         bank_name: '',
         bank_account_no: '',
         bank_account_name: '',
@@ -154,14 +162,8 @@ export default function SettingsClient() {
                     bank_name: settingsData.bank_name,
                     bank_account_no: settingsData.bank_account_no,
                     bank_account_name: settingsData.bank_account_name,
-                    billing_day: normalizeBillingDay(
-                        settingsData.billing_day === '' ? undefined : settingsData.billing_day,
-                        30
-                    ),
-                    payment_due_day: normalizeBillingDay(
-                        settingsData.payment_due_day === '' ? undefined : settingsData.payment_due_day,
-                        5
-                    )
+                    billing_day: normalizeBillingDay(settingsData.billing_day, 30),
+                    payment_due_day: normalizeBillingDay(settingsData.payment_due_day, 5)
                 }).eq('dorm_id', dormId)
 
                 // 3. Update LINE Config (Upsert)
@@ -343,7 +345,7 @@ export default function SettingsClient() {
                                     onChange={(e) => {
                                         const raw = e.target.value
                                         if (raw === '') {
-                                            setSettingsData({ ...settingsData, billing_day: '' as any })
+                                            setSettingsData({ ...settingsData, billing_day: '' })
                                             return
                                         }
                                         let val = parseInt(raw, 10)
@@ -374,7 +376,7 @@ export default function SettingsClient() {
                                     onChange={(e) => {
                                         const raw = e.target.value
                                         if (raw === '') {
-                                            setSettingsData({ ...settingsData, payment_due_day: '' as any })
+                                            setSettingsData({ ...settingsData, payment_due_day: '' })
                                             return
                                         }
                                         let val = parseInt(raw, 10)
