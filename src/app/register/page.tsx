@@ -89,6 +89,13 @@ export default function RegisterPage() {
                 msg = 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร'
             } else if (msg.includes('Unable to validate email address')) {
                 msg = 'รูปแบบอีเมลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง'
+            } else if (
+                msg.includes('Error sending confirmation email') ||
+                msg.includes('confirmation email') ||
+                msg.includes('sending email')
+            ) {
+                msg =
+                    'ระบบส่งอีเมลยืนยันไม่สำเร็จ (ฝั่ง Supabase) — ให้ไปที่ Dashboard โปรเจกต์ → Authentication → ตรวจ SMTP / Custom SMTP หรือ Logs; โปรเจกต์ฟรีอาจถูกจำกัดอัตราส่ง หรือต้องตั้งผู้ส่งอีเมลเอง (เช่น Resend, SendGrid)'
             }
 
             setError(msg)

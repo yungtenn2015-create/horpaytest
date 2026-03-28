@@ -15,8 +15,7 @@
     {{ .Email }}             อีเมลผู้สมัคร
     {{ .Token }}             (ถ้าเปิดใช้แบบ OTP แทนลิงก์ — ดูเอกสารเวอร์ชันของคุณ)
 
-    โลโก้: อัปโหลดรูปไปที่ public ของเว็บ แล้วแก้ src ด้านล่างเป็น URL เต็ม
-    เช่น https://horpay.app/email-logo.png
+    โลโก้: public/email-horpay-logo.png (สร้างด้วย node scripts/generate-pwa-icons.mjs) → {{ .SiteURL }}/email-horpay-logo.png
   -->
 </head>
 <body style="margin:0;padding:0;background-color:#ecfdf5;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
@@ -32,10 +31,7 @@
           <!-- header bar เขียวแบบแอป -->
           <tr>
             <td style="background:linear-gradient(135deg,#10b981 0%,#059669 100%);background-color:#10b981;padding:28px 32px;text-align:center;">
-              <!-- ถ้ามีโลโก้ PNG บนเซิร์ฟเวอร์ ให้ uncomment และใส่ URL จริง -->
-              <!--
-              <img src="{{ .SiteURL }}/email-horpay-logo.png" width="120" height="auto" alt="HORPAY" style="display:block;margin:0 auto 12px;border:0;outline:none;" />
-              -->
+              <img src="{{ .SiteURL }}/email-horpay-logo.png" width="80" height="80" alt="HORPAY" style="display:block;margin:0 auto 10px;border:0;outline:none;width:80px;height:80px;" />
               <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:0.02em;">
                 HORPAY
               </p>

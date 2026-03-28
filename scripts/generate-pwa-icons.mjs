@@ -40,4 +40,7 @@ await copyFile(
   join(root, "src", "app", "apple-icon.png")
 );
 
-console.log("Wrote PWA icons (house) under public/icons/ and src/app/icon.png, apple-icon.png");
+/** อีเมล (Supabase template) — PNG ใช้ได้กับ Outlook มากกว่า SVG */
+await writeHouseIcon(160, join(root, "public", "email-horpay-logo.png"));
+
+console.log("Wrote PWA icons (house) under public/icons/ and src/app/icon.png, apple-icon.png + public/email-horpay-logo.png");
