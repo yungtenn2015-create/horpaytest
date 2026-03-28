@@ -43,7 +43,7 @@ export default function ForgotPasswordPage() {
             <div className="w-full sm:max-w-md bg-white min-h-screen sm:min-h-[640px] sm:rounded-3xl sm:shadow-2xl overflow-hidden flex flex-col">
 
                 {/* ── Header ── */}
-                <div className="relative flex flex-col items-center justify-center pt-10 pb-12 px-6 bg-gradient-to-br from-green-800 to-green-500">
+                <div className="relative flex flex-col items-center justify-center pt-10 pb-12 px-6 bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500">
                     <div className="absolute w-48 h-48 rounded-full bg-white/5 -top-16 -right-10" />
                     <div className="absolute w-28 h-28 rounded-full bg-white/5 bottom-4 -left-8" />
 
@@ -89,7 +89,7 @@ export default function ForgotPasswordPage() {
                                     placeholder="owner@example.com"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full h-13 px-4 rounded-xl border-2 border-gray-100 bg-transparent text-gray-800 placeholder-gray-300 outline-none focus:border-green-500 focus:bg-white transition-all text-base font-sans"
+                                    className="w-full h-13 px-4 rounded-xl border-2 border-gray-50 bg-gray-50 text-gray-800 placeholder-gray-300 outline-none focus:border-emerald-500 focus:bg-white transition-all text-base font-sans"
                                 />
                             </div>
 
@@ -97,15 +97,15 @@ export default function ForgotPasswordPage() {
                             <button
                                 onClick={handleResetPassword}
                                 disabled={loading}
-                                className="w-full py-4 rounded-xl bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-50 text-white font-bold text-lg transition-all shadow-lg shadow-green-100"
+                                className="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 font-bold text-lg text-white shadow-lg shadow-emerald-200/50 transition-all hover:from-emerald-700 hover:to-teal-600 active:opacity-95 disabled:opacity-50"
                             >
                                 {loading ? 'กำลังส่งข้อมูล...' : 'ส่งลิงก์รีเซ็ตรหัสผ่าน'}
                             </button>
                         </>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center py-8 text-center animate-in fade-in zoom-in duration-300">
-                            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-10 h-10 text-green-600">
+                            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-10 h-10 text-emerald-600">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                             </div>
@@ -115,7 +115,7 @@ export default function ForgotPasswordPage() {
                             </p>
                             <button
                                 onClick={() => router.push('/login')}
-                                className="w-full py-4 rounded-xl border-2 border-green-600 text-green-700 font-bold hover:bg-green-50 transition-all"
+                                className="w-full py-4 rounded-xl border-2 border-emerald-600 font-bold text-emerald-700 transition-all hover:bg-emerald-50 active:bg-emerald-100"
                             >
                                 กลับหน้าเข้าสู่ระบบ
                             </button>
@@ -127,7 +127,7 @@ export default function ForgotPasswordPage() {
                         <div className="text-center mt-auto pb-4">
                             <span
                                 onClick={() => router.push('/login')}
-                                className="text-sm text-green-700 font-bold underline cursor-pointer"
+                                className="cursor-pointer text-sm font-bold text-emerald-700 underline transition-colors hover:text-emerald-800"
                             >
                                 กลับไปหน้าเข้าสู่ระบบ
                             </span>
