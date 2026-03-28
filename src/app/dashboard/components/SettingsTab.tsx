@@ -17,7 +17,8 @@ import {
     CalendarDaysIcon,
     BoltIcon,
     Squares2X2Icon,
-    KeyIcon
+    KeyIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline'
 
 import {
@@ -29,6 +30,7 @@ import { Service } from '../DashboardClient'
 import { createClient } from '@/lib/supabase-client'
 
 interface SettingsTabProps {
+    onCloseSettings: () => void
     activeSettingsTab: string
     setActiveSettingsTab: (tab: string) => void
     dormId: string
@@ -88,6 +90,7 @@ function dayFromDraft(raw: string, fallback: number): number {
 }
 
 const SettingsTab: React.FC<SettingsTabProps> = ({
+    onCloseSettings,
     activeSettingsTab,
     setActiveSettingsTab,
     dormId,
@@ -212,11 +215,22 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto h-full px-6 pt-12 pb-32">
-            <div className="mb-8">
-                <h1 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-3">
-                    <span className="text-4xl">⚙️</span> ตั้งค่าระบบ
-                </h1>
-                <p className="text-gray-400 font-bold text-sm mt-1">จัดการข้อมูลหอพักและตั้งค่าการแจ้งเตือน</p>
+            <div className="mb-8 flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <h1 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-3 flex-wrap">
+                        <span className="text-4xl shrink-0">⚙️</span>
+                        <span>ตั้งค่าระบบ</span>
+                    </h1>
+                    <p className="text-gray-400 font-bold text-sm mt-1">จัดการข้อมูลหอพักและตั้งค่าการแจ้งเตือน</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={onCloseSettings}
+                    className="shrink-0 mt-1 w-11 h-11 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-colors active:scale-95 border border-gray-200/80"
+                    aria-label="ปิดและกลับหน้าหลัก"
+                >
+                    <XMarkIcon className="w-6 h-6 stroke-[2.5]" />
+                </button>
             </div>
 
             <div className="mb-8">
@@ -507,10 +521,11 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                                             />
                                         </div>
                                         <button
+                                            type="button"
                                             onClick={addService}
-                                            className="w-12 h-12 bg-purple-50 text-purple-600 border-2 border-purple-100 rounded-xl flex items-center justify-center hover:bg-purple-100 transition-all active:scale-90"
+                                            className="shrink-0 h-12 px-4 bg-purple-50 text-purple-600 border-2 border-purple-100 rounded-xl flex items-center justify-center text-sm font-black hover:bg-purple-100 transition-all active:scale-90"
                                         >
-                                            <PlusIcon className="w-6 h-6" />
+                                            เพิ่ม
                                         </button>
                                     </div>
 

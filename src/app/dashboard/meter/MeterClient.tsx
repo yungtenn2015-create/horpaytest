@@ -202,7 +202,7 @@ export default function MeterClient() {
 
                             let prevWater = '0'
                             let prevElec = '0'
-                            let isInitial = !hasPrecedingRecord || roomUtils.length === 0
+                            const isInitial = !hasPrecedingRecord || roomUtils.length === 0
 
                             if (currRec) {
                                 // Prioritize actual reading from previous month if it exists (Sync)

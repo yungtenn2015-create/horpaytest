@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, useRef } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import { format, parse } from 'date-fns'
 import {
@@ -43,7 +43,9 @@ interface BillItemRow {
 
 export default function BillingClient() {
     const router = useRouter()
+    const pathname = usePathname()
     const searchParams = useSearchParams()
+    const roomFromUrl = searchParams.get('room')?.trim() || ''
     const [loading, setLoading] = useState(true)
     const [dormName, setDormName] = useState('หอพักของคุณ')
     /** ที่อยู่ / เบอร์โทรอยู่ที่ตาราง dorms ไม่ใช่ dorm_settings */
@@ -67,6 +69,7 @@ export default function BillingClient() {
     const [billingDay, setBillingDay] = useState(25)
     const [dueDay, setDueDay] = useState(5)
     const [expandedRoom, setExpandedRoom] = useState<string | null>(null)
+    const handledRoomQueryRef = useRef(false)
     const [filterFloor, setFilterFloor] = useState<number | 'all'>('all')
     const [filterLineStatus, setFilterLineStatus] = useState<'all' | 'linked' | 'unlinked'>('all')
     const [filterWorkingStatus, setFilterWorkingStatus] = useState<'all' | 'pending_meter' | 'ready' | 'issued'>('all')
@@ -99,6 +102,40 @@ export default function BillingClient() {
     useEffect(() => {
         fetchData()
     }, [selectedDate])
+
+    /** Deep-link e.g. /dashboard/billing?room=201 — focus that row, expand, scroll, then strip ?room */
+    useEffect(() => {
+        if (!roomFromUrl) {
+            handledRoomQueryRef.current = false
+            return
+        }
+        if (loading || billingData.length === 0) return
+        if (handledRoomQueryRef.current) return
+
+        const match = billingData.find((r) => String(r.roomNumber).trim() === roomFromUrl)
+        if (!match) return
+
+        handledRoomQueryRef.current = true
+
+        setFilterFloor('all')
+        setFilterWorkingStatus('all')
+        setFilterLineStatus('all')
+        setExpandedRoom(match.roomId)
+
+        const scrollTimer = window.setTimeout(() => {
+            document.getElementById(`billing-room-${match.roomId}`)?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            })
+        }, 200)
+
+        const qs = new URLSearchParams(searchParams.toString())
+        qs.delete('room')
+        const next = qs.toString() ? `${pathname}?${qs.toString()}` : pathname
+        router.replace(next, { scroll: false })
+
+        return () => window.clearTimeout(scrollTimer)
+    }, [loading, billingData, roomFromUrl, pathname, router, searchParams])
 
     async function fetchData() {
         setLoading(true)
@@ -408,8 +445,6 @@ export default function BillingClient() {
             if (existingActive) {
                 throw new Error('ไม่สามารถออกบิลซ้ำได้: มีบิลในห้องนี้/เดือนนี้อยู่แล้ว (ยังไม่ถูกยกเลิก) หากต้องการออกใหม่ กรุณายกเลิกบิลเดิมก่อน')
             } else if (existingCancelled) {
-                    // Accounting rule: issued bill amounts are immutable.
-                    // If owner changed inputs, don't silently override old cancelled bill amounts.
                     const nextRoom = Number(item.rent || 0)
                     const nextUtility = Number(item.water || 0) + Number(item.electricity || 0)
                     const nextOther = Number(item.others || 0)
@@ -422,26 +457,34 @@ export default function BillingClient() {
                         Number(existingCancelled.total_amount || 0) === nextTotal
 
                     if (!isSameAmount) {
-                        throw new Error(
+                        const ok = window.confirm(
                             [
-                                'ห้องนี้เคยมีบิลเดือนนี้ในระบบแล้ว (แม้จะยกเลิกไปก็ยังมีประวัติอยู่)',
-                                'ยอดในระบบจึงไม่ตรงกับที่คำนวณตอนนี้ — ระบบจะไม่ยอมเปลี่ยนตัวเลขในใบเก่าให้ทับเอง',
-                                '',
-                                'ทำได้อย่างใดอย่างหนึ่ง:',
-                                '• ไปดูที่ประวัติบิล ว่ามีบิลเดือนนี้เหลืออยู่หรือไม่',
-                                '• หรือลองเลือกเดือนอื่นที่ยังไม่เคยออกบิล',
+                                `ห้องนี้เคยมีบิลเดือนนี้แล้ว (ยกเลิกไว้) แต่ยอดที่คำนวณตอนนี้ไม่ตรงกับในระบบ`,
+                                `ยอดรวมใหม่: ฿${nextTotal.toLocaleString()}`,
+                                ``,
+                                
+                                `(ยอดในบิลจะถูกอัปเดตเป็นตัวเลขใหม่)`,
                             ].join('\n')
                         )
+                        if (!ok) return
+                    }
+
+                    const reopenPatch: Record<string, string | number | null> = {
+                        utility_id: item.utilityId,
+                        due_date: dueDateStr,
+                        status: 'unpaid',
+                        paid_at: null,
+                    }
+                    if (!isSameAmount) {
+                        reopenPatch.room_amount = item.rent
+                        reopenPatch.utility_amount = item.water + item.electricity
+                        reopenPatch.other_amount = item.others
+                        reopenPatch.total_amount = total
                     }
 
                     const { data: updated, error: updErr } = await supabase
                         .from('bills')
-                        .update({
-                            utility_id: item.utilityId,
-                            due_date: dueDateStr,
-                            status: 'unpaid',
-                            paid_at: null
-                        })
+                        .update(reopenPatch)
                         .eq('id', existingCancelled.id)
                         .select('id')
                         .single()
@@ -534,12 +577,11 @@ export default function BillingClient() {
             let friendly = raw || 'เกิดข้อผิดพลาดในการออกบิล'
             if (raw.includes('ห้ามแก้ยอดเงินในบิลหลังสร้างแล้ว')) {
                 friendly = [
-                    'ใบแจ้งหนี้ฉบับนี้ถูกออกไปแล้วในระบบ',
-                    'ตัวเลขค่าเช่า / ยอดรวมเลยถูกล็อกไว้ — ไม่ให้แก้ภายหลังเหมือนแก้เอกสารที่ออกแล้ว',
+                    'ฐานข้อมูลยังล็อกไม่ให้แก้ยอดในบิลที่เคยออกแล้ว',
                     '',
-                    'ถ้าต้องการยอดใหม่:',
-                    '• ยกเลิกบิลฉบับนี้ในระบบ (ถ้าระบบให้ยกเลิกได้)',
-                    '• แล้วค่อยออกบิลใหม่ตามยอดที่ถูกต้อง',
+                    'ถ้าต้องการเปิดบิลที่ยกเลิกไว้ด้วยยอดใหม่ — ให้ผู้ดูแลรัน db/migration_v17_bills_reopen_cancelled_amounts.sql ใน Supabase',
+                    '',
+                    'กรณีบิลที่ยังใช้งานอยู่: ยกเลิกบิลเดิมก่อน แล้วค่อยออกบิลใหม่ หรือใช้ยอดให้ตรงกับในระบบ',
                 ].join('\n')
             } else if (low.includes('row-level security') || low.includes('violates row-level security')) {
                 friendly = [
@@ -953,6 +995,7 @@ export default function BillingClient() {
 
                                         return (
                                             <div
+                                                id={`billing-room-${item.roomId}`}
                                                 key={item.roomId}
                                                 className={`overflow-hidden transition-all border-b border-gray-100 last:border-0 ${isExpanded ? 'bg-gray-50/50 rounded-2xl border border-gray-100 p-1' : 'bg-white'}`}
                                             >
@@ -1196,7 +1239,7 @@ export default function BillingClient() {
                                 </div>
                                 <h3 className="text-xl font-black text-gray-900 mb-2 font-noto">ยกเลิกบิลห้อง {confirmDelete.roomNumber}?</h3>
                                 <p className="text-sm font-bold text-gray-400 px-4 font-noto">
-                                    บิลใบนี้จะถูกยกเลิก และเปลี่ยนสถานะเป็น "ยกเลิกแล้ว" คุณสามารถออกบิลใหม่ได้ทันที
+                                    บิลใบนี้จะถูกยกเลิก และเปลี่ยนสถานะเป็น &ldquo;ยกเลิกแล้ว&rdquo; คุณสามารถออกบิลใหม่ได้ทันที
                                 </p>
                             </div>
                             <div className="p-6 bg-gray-50 flex gap-3">
@@ -1266,7 +1309,7 @@ export default function BillingClient() {
                                 </div>
                                 <h3 className="text-xl font-black text-gray-900 mb-2 font-noto">ยกเลิกการยืนยันเงิน?</h3>
                                 <p className="text-sm font-bold text-gray-400 px-4 font-noto">
-                                    สถานะของห้อง <span className="text-gray-900">{confirmRevert.roomNumber}</span> จะกลับไปเป็น "รอยืนยัน" อีกครั้ง
+                                    สถานะของห้อง <span className="text-gray-900">{confirmRevert.roomNumber}</span> จะกลับไปเป็น &ldquo;รอยืนยัน&rdquo; อีกครั้ง
                                 </p>
                             </div>
                             <div className="p-6 bg-gray-50 flex gap-3">

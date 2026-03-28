@@ -52,6 +52,7 @@ interface OverviewTabProps {
         monthlyRevenue: number;
         collectedRevenue: number;
         pendingRevenue: number;
+        pendingNotOverdueAmount?: number;
         occupancyRate: number;
         waterUnits: number;
         waterAmount: number;
@@ -110,10 +111,36 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     dbError
 }) => {
     const [trialNow, setTrialNow] = React.useState(() => new Date());
+    const notifTriggerRef = React.useRef<HTMLButtonElement>(null);
+    const notifPanelRef = React.useRef<HTMLDivElement>(null);
+    const menuTriggerRef = React.useRef<HTMLDivElement>(null);
+    const menuPanelRef = React.useRef<HTMLDivElement>(null);
+
     React.useEffect(() => {
         const id = setInterval(() => setTrialNow(new Date()), 60 * 60 * 1000);
         return () => clearInterval(id);
     }, []);
+
+    React.useEffect(() => {
+        if (!isNotificationsOpen && !isMenuOpen) return;
+
+        const onPointerDown = (e: PointerEvent) => {
+            const target = e.target as Node;
+            if (isNotificationsOpen) {
+                const inTrigger = notifTriggerRef.current?.contains(target);
+                const inPanel = notifPanelRef.current?.contains(target);
+                if (!inTrigger && !inPanel) setIsNotificationsOpen(false);
+            }
+            if (isMenuOpen) {
+                const inTrigger = menuTriggerRef.current?.contains(target);
+                const inPanel = menuPanelRef.current?.contains(target);
+                if (!inTrigger && !inPanel) setIsMenuOpen(false);
+            }
+        };
+
+        document.addEventListener('pointerdown', onPointerDown, true);
+        return () => document.removeEventListener('pointerdown', onPointerDown, true);
+    }, [isNotificationsOpen, isMenuOpen, setIsNotificationsOpen, setIsMenuOpen]);
 
     const getTrialDaysLeft = () => {
         if (!userPlan?.trial_expires_at) return 0;
@@ -201,10 +228,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         return (
             <>
                 <div
-                    className="fixed inset-0 z-[105] bg-black/5"
+                    className="fixed inset-0 z-[105] bg-black/10 touch-manipulation"
+                    aria-hidden
                     onClick={() => setIsNotificationsOpen(false)}
                 />
-                <div className="absolute right-[-1.5rem] top-full mt-4 w-72 bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-gray-100 z-[110] overflow-hidden animate-in fade-in zoom-in-95 duration-300 origin-top-right">
+                <div
+                    ref={notifPanelRef}
+                    className="absolute right-[-1.5rem] top-full mt-4 w-72 bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-gray-100 z-[110] overflow-hidden animate-in fade-in zoom-in-95 duration-300 origin-top-right"
+                >
                     <div className="px-6 py-5 bg-gradient-to-b from-gray-50/80 to-white border-b border-gray-100 flex items-center justify-between">
                         <div>
                             <h3 className="text-[17px] font-black text-gray-800 tracking-tight leading-none">รายการที่ต้องดำเนินการ</h3>
@@ -310,7 +341,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                         <div className="flex items-center gap-2.5">
                             <div className="relative">
                                 <button
-                                    onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                                    ref={notifTriggerRef}
+                                    type="button"
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        setIsNotificationsOpen(!isNotificationsOpen);
+                                    }}
                                     className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all active:scale-95 border shadow-sm backdrop-blur-md ${isNotificationsOpen
                                         ? 'bg-white text-primary border-white'
                                         : 'bg-white/20 hover:bg-white/30 text-white border-white/20'
@@ -325,7 +361,20 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                             </div>
                             <div className="relative">
                                 <div
-                                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                    ref={menuTriggerRef}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => {
+                                        setIsNotificationsOpen(false);
+                                        setIsMenuOpen(!isMenuOpen);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            setIsNotificationsOpen(false);
+                                            setIsMenuOpen(!isMenuOpen);
+                                        }
+                                    }}
                                     className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary shadow-lg cursor-pointer hover:shadow-xl hover:-translate-y-0.5 transition-all active:scale-95 border-2 border-white/20 overflow-hidden"
                                 >
                                     <span className="material-symbols-outlined text-[26px]">person</span>
@@ -334,7 +383,15 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                                 {/* Dropdown Menu */}
                                 {isMenuOpen && (
                                     <>
-                                        <div className="absolute right-0 top-full mt-4 w-[260px] bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-gray-100 z-[110] overflow-hidden animate-in fade-in zoom-in-95 duration-300 origin-top-right">
+                                        <div
+                                            className="fixed inset-0 z-[105] bg-black/10"
+                                            aria-hidden
+                                            onClick={() => setIsMenuOpen(false)}
+                                        />
+                                        <div
+                                            ref={menuPanelRef}
+                                            className="absolute right-0 top-full mt-4 w-[260px] bg-white rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-gray-100 z-[110] overflow-hidden animate-in fade-in zoom-in-95 duration-300 origin-top-right"
+                                        >
                                             <div className="px-6 py-6 bg-gradient-to-b from-gray-50/80 to-white border-b border-gray-100">
                                                 <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1.5 leading-none">แจ้งปัญหาติดต่อ</p>
                                                 <p className="text-[14px] font-black text-gray-800 tracking-tight leading-none truncate">Line : yungtenn2015</p>

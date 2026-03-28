@@ -21,6 +21,8 @@ interface StatsTabProps {
         monthlyRevenue: number;
         collectedRevenue: number;
         pendingRevenue: number;
+        /** ยอดรอชำระที่ไม่นับเป็นเกินกำหนด (คำนวณใน DashboardClient; อย่าใช้ pendingRevenue − overdueAmount) */
+        pendingNotOverdueAmount?: number;
         billStatusCounts: {
             paid: number;
             waiting_verify: number;
@@ -117,7 +119,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
                                 <div className="space-y-1.5 pt-2 border-t border-green-200/50">
                                     <div className="flex justify-between text-[11px] font-bold text-green-600">
                                         <span>รอชำระ (เดือนนี้)</span>
-                                        <span className="text-green-800">฿{(overviewData.pendingRevenue - (overviewData.billStatusCounts as any).overdueAmount || 0).toLocaleString()}</span>
+                                        <span className="text-green-800">฿{Math.max(0, overviewData.pendingNotOverdueAmount ?? 0).toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between text-[11px] font-bold text-orange-600">
                                         <span>ค้างชำระ (เกินกำหนด)</span>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import RoomsTab from './components/RoomsTab'
@@ -126,6 +126,8 @@ export default function DashboardClient() {
     const [userInitial, setUserInitial] = useState('O')
     const [userName, setUserName] = useState('')
     const [dbError, setDbError] = useState('') // added error state
+    const refreshRequestIdRef = useRef(0)
+    const prevOverviewTabRef = useRef<string | null>(null)
     const [isMenuOpen, setIsMenuOpen] = useState(false) // for user dropdown
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false) // for notifications dropdown
     const [pendingRoomIds, setPendingRoomIds] = useState<Set<string>>(new Set())
@@ -315,6 +317,8 @@ export default function DashboardClient() {
         monthlyRevenue: 0,
         collectedRevenue: 0,
         pendingRevenue: 0,
+        /** ยอดที่ยังไม่ชำระและไม่นับเป็น "เกินกำหนด" (รวมบิลผู้เช่าเก่า/เครดิต); ใช้แยกจาก overdueAmount */
+        pendingNotOverdueAmount: 0,
         projectedRevenue: 0,
         occupancyRate: 0,
         waterUnits: 0,
@@ -702,6 +706,7 @@ export default function DashboardClient() {
     };
 
     const refreshDashboard = useCallback(async (isInitial = false) => {
+        const requestId = ++refreshRequestIdRef.current
         if (isInitial) setLoading(true);
         else setFetchingOverview(true);
 
@@ -710,6 +715,10 @@ export default function DashboardClient() {
 
         if (!user) {
             router.push('/login');
+            if (requestId === refreshRequestIdRef.current) {
+                setLoading(false);
+                setFetchingOverview(false);
+            }
             return;
         }
 
@@ -718,6 +727,7 @@ export default function DashboardClient() {
         setUserInitial(name.charAt(0).toUpperCase());
 
         try {
+            setDbError('')
             console.log("Refreshing Dashboard Data...");
             // 0. Get User Plan to check trial status
             const { data: userData, error: userError } = await supabase
@@ -798,11 +808,12 @@ export default function DashboardClient() {
             // Process Current Month Stats - Unified Room-Centric Logic
             let collected = 0;
             let pending = 0;
+            let pendingNotOverdueAmount = 0;
             let water = 0;
             let waterAmt = 0;
             let electric = 0;
             let electricAmt = 0;
-            let counts: { paid: number, waiting_verify: number, unpaid: number, overdue: number, movingOut: number, overdueAmount: number } = { paid: 0, waiting_verify: 0, unpaid: 0, overdue: 0, movingOut: 0, overdueAmount: 0 };
+            const counts: { paid: number, waiting_verify: number, unpaid: number, overdue: number, movingOut: number, overdueAmount: number } = { paid: 0, waiting_verify: 0, unpaid: 0, overdue: 0, movingOut: 0, overdueAmount: 0 };
             const pendingIdsSet = new Set<string>();
             const waitingVerifyIdsSet = new Set<string>();
             const unpaidIdsSet = new Set<string>();
@@ -839,6 +850,21 @@ export default function DashboardClient() {
                 // This fix ensures the "Pending" list and "Counts" match actual occupancy.
                 const activeTenant = (room.tenants as any[])?.find(t => t.status === 'active');
                 const isCurrentTenantBill = activeTenant && b.tenant_id === activeTenant.id;
+
+                // Split pending ฿ for overview (do not use pending − overdueAmount: negative/credit line items break it)
+                if (s !== 'paid' && s !== 'cancelled') {
+                    let dueForSplit = b.due_date ? new Date(b.due_date) : null;
+                    if (b.billing_month === '2026-03-01' && b.due_date === '2026-03-05') {
+                        dueForSplit = new Date('2026-04-05');
+                    }
+                    const overdueForSplit =
+                        Boolean(dueForSplit && dueForSplit < now && s !== 'paid' && s !== 'waiting_verify');
+                    const inOverdueMoneySlice =
+                        Boolean(isCurrentTenantBill && (overdueForSplit || s === 'overdue'));
+                    if (!inOverdueMoneySlice) {
+                        pendingNotOverdueAmount += totalAmt;
+                    }
+                }
 
                 if (!isCurrentTenantBill) return;
 
@@ -967,6 +993,7 @@ export default function DashboardClient() {
                 monthlyRevenue: collected + pending,
                 collectedRevenue: collected,
                 pendingRevenue: pending,
+                pendingNotOverdueAmount,
                 projectedRevenue: collected + pending,
                 occupancyRate: activeRooms.length ? Math.round(activeRooms.filter(r => r.status === 'occupied').length / activeRooms.length * 100) : 0,
                 waterUnits: water,
@@ -1040,10 +1067,19 @@ export default function DashboardClient() {
 
         } catch (err) {
             console.error("Dashboard Refresh Error:", err);
-            setDbError(prev => prev + " [Refresh Error]");
+            if (requestId !== refreshRequestIdRef.current) return
+            const detail =
+                err instanceof Error
+                    ? err.message
+                    : typeof err === 'object' && err !== null && 'message' in err
+                      ? String((err as { message: unknown }).message)
+                      : String(err)
+            setDbError(detail.trim() || 'ไม่สามารถโหลดข้อมูลได้')
         } finally {
-            setLoading(false);
-            setFetchingOverview(false);
+            if (requestId === refreshRequestIdRef.current) {
+                setLoading(false);
+                setFetchingOverview(false);
+            }
         }
     }, [router]);
 
@@ -1051,11 +1087,15 @@ export default function DashboardClient() {
         refreshDashboard(true);
     }, [refreshDashboard]);
 
-    // Re-fetch when switching tabs to ensure freshness
+    // Re-fetch when switching to a data tab (not on first paint — initial effect already loads)
     useEffect(() => {
-        if (activeTab === 'overview' || activeTab === 'stats' || activeTab === 'rooms') {
-            refreshDashboard(false);
-        }
+        const isDataTab = activeTab === 'overview' || activeTab === 'stats' || activeTab === 'rooms'
+        const prev = prevOverviewTabRef.current
+        prevOverviewTabRef.current = activeTab
+        if (!isDataTab) return
+        if (prev === null) return
+        if (prev === activeTab) return
+        refreshDashboard(false)
     }, [activeTab, refreshDashboard]);
 
     // Close any floating overlays when switching tabs so they don't block clicks.
@@ -1507,6 +1547,7 @@ export default function DashboardClient() {
                 {/* ── Settings Tab Content ── */}
                 {activeTab === 'settings' && (
                     <SettingsTab
+                        onCloseSettings={() => setActiveTab('overview')}
                         activeSettingsTab={activeSettingsTab}
                         setActiveSettingsTab={setActiveSettingsTab}
                         dormId={dorm?.id || ''}

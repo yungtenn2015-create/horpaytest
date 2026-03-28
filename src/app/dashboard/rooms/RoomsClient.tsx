@@ -843,7 +843,7 @@ export default function RoomsClient() {
                             <div className="p-8 space-y-4">
                                 <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
                                     <p className="text-[11px] text-red-600 font-black leading-relaxed">
-                                        * ข้อมูลห้องนี้จะถูกย้ายไปอยู่ที่ "ห้องที่ถูกลบ" (ถังขยะ) โดยคุณสามารถกู้คืนกลับมาได้ในภายหลัง
+                                        * ข้อมูลห้องนี้จะถูกย้ายไปอยู่ที่ &ldquo;ห้องที่ถูกลบ&rdquo; (ถังขยะ) โดยคุณสามารถกู้คืนกลับมาได้ในภายหลัง
                                     </p>
                                 </div>
 

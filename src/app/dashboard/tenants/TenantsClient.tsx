@@ -138,7 +138,7 @@ export default function TenantsClient() {
             const d2 = new Date(end);
             if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return '';
 
-            let months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+            const months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
             if (months <= 0) return '';
 
             if (months >= 12) {

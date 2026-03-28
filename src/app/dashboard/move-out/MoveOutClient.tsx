@@ -818,7 +818,7 @@ export default function MoveOutClient() {
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="w-12 h-12 border-4 border-blue-100 border-t-red-600 rounded-full animate-spin" />
+                <div className="w-12 h-12 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin" />
             </div>
         )
     }
@@ -1506,8 +1506,16 @@ export default function MoveOutClient() {
                             </div>
 
                             <div className="px-8 py-6 space-y-4 max-h-[300px] overflow-y-auto no-scrollbar">
-                                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 italic text-[11px] text-gray-400 font-medium text-center">
-                                    ผู้เช่า <span className="font-black text-gray-600">{selectedTenant.name}</span> ยังมีบิลที่ยังไม่ได้ชำระดังนี้:
+                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-left text-[12px] font-bold leading-snug text-emerald-900">
+                                    <p className="font-black text-emerald-800 mb-1.5">ทำอย่างไรต่อ?</p>
+                                    <p className="text-emerald-900/90">
+                                        ให้ไป<strong className="font-black">ยกเลิกบิลที่ค้าง</strong> ที่หน้าออกบิล
+                                        แล้ว<strong className="font-black">กลับมาที่หน้านี้</strong>เพื่อคำนวณสรุปย้ายออก<strong className="font-black">ครั้งเดียว</strong>
+                                        — จะได้ไม่สับสนว่ามีทั้งบิลเดิมกับยอดปิดบัญชีซ้ำกัน
+                                    </p>
+                                </div>
+                                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 text-[11px] text-gray-600 font-medium text-center">
+                                    ผู้เช่า <span className="font-black text-gray-800">{selectedTenant.name}</span> มีบิลที่ยังไม่ปิดดังนี้:
                                 </div>
 
                                 {pendingBills.map(bill => (
@@ -1535,32 +1543,25 @@ export default function MoveOutClient() {
 
                             <div className="p-8 space-y-3 bg-gray-50">
                                 <button
-                                    onClick={() => router.push('/dashboard/history?type=move_out')}
-                                    className="w-full h-14 bg-gray-800 hover:bg-black text-white font-black rounded-2xl shadow-lg shadow-gray-200 transition-all active:scale-95"
+                                    type="button"
+                                    onClick={() => router.push(`/dashboard/billing?room=${selectedTenant.rooms.room_number}`)}
+                                    className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-lg shadow-emerald-100 transition-all active:scale-95"
+                                >
+                                    ไปหน้าออกบิล — ยกเลิก/ปิดบิลค้าง
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => router.push('/dashboard/history')}
+                                    className="w-full h-14 bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 font-black rounded-2xl transition-all active:scale-95"
                                 >
                                     ไปหน้าประวัติบิล
                                 </button>
                                 <button
-                                    onClick={() => router.push(`/dashboard/billing?room=${selectedTenant.rooms.room_number}`)}
-                                    className="w-full h-14 bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 font-black rounded-2xl transition-all active:scale-95"
-                                >
-                                    ไปหน้าออกบิล/ชำระเงิน
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setShowDebtWarning(false)
-                                        setMoveOutBillId(null)
-                                        setShowMoveOutModal(true)
-                                    }}
-                                    className="w-full h-14 bg-white border-2 border-red-100 text-red-500 hover:bg-red-50 font-black rounded-2xl transition-all active:scale-95"
-                                >
-                                    ยืนยันย้ายออกทั้งที่มีหนี้
-                                </button>
-                                <button
+                                    type="button"
                                     onClick={() => setShowDebtWarning(false)}
-                                    className="w-full py-2 text-gray-400 font-bold text-xs"
+                                    className="w-full py-3 text-gray-500 font-bold text-sm hover:text-gray-700"
                                 >
-                                    ยกเลิก
+                                    ปิด — กลับมาคำนวณในหน้านี้หลังจัดการบิลแล้ว
                                 </button>
                             </div>
                         </div>

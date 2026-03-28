@@ -13,7 +13,8 @@ import {
     BuildingOfficeIcon,
     CheckCircleIcon,
     ArrowPathIcon,
-    ChatBubbleLeftRightIcon
+    ChatBubbleLeftRightIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline'
 
 function normalizeBillingDay(value: unknown, fallback: number): number {
@@ -208,7 +209,14 @@ export default function SettingsClient() {
                         <ChevronLeftIcon className="w-6 h-6 stroke-[2.5]" />
                     </button>
                     <h1 className="text-xl font-black text-gray-800">ตั้งค่าหอพัก</h1>
-                    <div className="w-10" />
+                    <button
+                        type="button"
+                        onClick={() => router.push('/dashboard')}
+                        className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-all active:scale-95"
+                        aria-label="ปิดและกลับแดชบอร์ด"
+                    >
+                        <XMarkIcon className="w-6 h-6 stroke-[2.5]" />
+                    </button>
                 </div>
             </header>
 
@@ -457,9 +465,9 @@ export default function SettingsClient() {
                             <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2">💡 วิธีตั้งค่า</p>
                             <ul className="text-xs text-blue-700 font-bold space-y-1 ml-4 list-disc">
                                 <li>ไปที่ LINE Developers Console เลือก Channel Messaging API</li>
-                                <li>คัดลอก Channel ID, Secret และ Issue 'Channel access token'</li>
+                                <li>คัดลอก Channel ID, Secret และ Issue &apos;Channel access token&apos;</li>
                                 <li>ตั้งค่า Webhook URL เป็น: <code className="bg-white/80 px-1 rounded">https://yourdomain.com/api/line/webhook</code></li>
-                                <li>กด "บันทึกการตั้งค่า" ในหน้านี้</li>
+                                <li>กด &ldquo;บันทึกการตั้งค่า&rdquo; ในหน้านี้</li>
                             </ul>
                         </div>
                     </div>

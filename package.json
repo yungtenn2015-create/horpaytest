@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "icons": "node scripts/generate-pwa-icons.mjs"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

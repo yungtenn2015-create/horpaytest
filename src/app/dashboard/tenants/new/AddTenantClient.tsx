@@ -220,7 +220,7 @@ export default function AddTenantClient() {
             const d2 = new Date(end);
             if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return '';
 
-            let months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+            const months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
             if (months <= 0) return '';
 
             if (months >= 12) {
@@ -468,7 +468,7 @@ export default function AddTenantClient() {
                         <CheckCircleIcon className="w-14 h-14 stroke-[2]" />
                     </div>
                     <h2 className="text-3xl font-black text-gray-800 mb-3 relative z-10">เพิ่มผู้เช่าสำเร็จ!</h2>
-                    <p className="text-gray-500 mb-10 relative z-10">ระบบได้บันทึกข้อมูลผู้เช่าและเปลี่ยนสถานะห้องเป็น "มีผู้เช่าแล้ว" เรียบร้อย</p>
+                    <p className="text-gray-500 mb-10 relative z-10">ระบบได้บันทึกข้อมูลผู้เช่าและเปลี่ยนสถานะห้องเป็น &ldquo;มีผู้เช่าแล้ว&rdquo; เรียบร้อย</p>
 
                     <button
                         onClick={() => router.push('/dashboard')}
@@ -657,7 +657,7 @@ export default function AddTenantClient() {
                                     {tenantName ? (
                                         <><DocumentTextIcon className="w-7 h-7" /> เปลี่ยนสัญญาโอนข้อมูล</>
                                     ) : (
-                                        <><MagnifyingGlassIcon className="w-7 h-7 group-hover:scale-110 transition-transform" /> ดึงข้อมูลจาก "บันทึกสัญญา"</>
+                                        <><MagnifyingGlassIcon className="w-7 h-7 group-hover:scale-110 transition-transform" /> ดึงข้อมูลจาก &ldquo;บันทึกสัญญา&rdquo;</>
                                     )}
                                 </button>
                                 
