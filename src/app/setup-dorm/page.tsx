@@ -863,7 +863,7 @@ export default function SetupDormPage() {
                     {step === 6 && (
                         <div className="flex-1 flex flex-col animate-in slide-in-from-right-4 duration-500">
                             <p className="text-gray-500 text-sm mb-6">
-                                ทุกห้องตามจำนวนที่ตั้งในขั้นก่อนจะถูกสร้างเมื่อจบขั้นตอน — ถ้าต้องการห้องน้อยลงให้กดย้อนกลับไปลดจำนวนห้องต่อชั้น
+                                ถ้าต้องการลดหรือเพิ่มจำนวนห้องให้กดย้อนกลับไปตั้งค่าจำนวนห้องต่อชั้นใหม่อีกครั้งครับ
                                 <span className="block mt-1">แก้ไขเลขห้องให้ตรงกับหอพักของท่าน</span>
                             </p>
 

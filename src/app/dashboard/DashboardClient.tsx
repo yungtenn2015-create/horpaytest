@@ -137,6 +137,8 @@ export default function DashboardClient() {
     const [unpaidRoomIds, setUnpaidRoomIds] = useState<Set<string>>(new Set())
     const [overdueRoomIds, setOverdueRoomIds] = useState<Set<string>>(new Set())
     const [movingOutRoomIds, setMovingOutRoomIds] = useState<Set<string>>(new Set())
+    /** มีบิลประเภท move_out ที่ยังไม่จบเท่านั้น — ไม่รวมแค่แจ้งวันย้ายล่วงหน้า */
+    const [pendingMoveOutBillRoomIds, setPendingMoveOutBillRoomIds] = useState<Set<string>>(new Set())
     const [selectedFloor, setSelectedFloor] = useState<string>('all')
     const [selectedStatus, setSelectedStatus] = useState<string>('all')
     const [stats, setStats] = useState({
@@ -823,6 +825,7 @@ export default function DashboardClient() {
             const unpaidIdsSet = new Set<string>();
             const overdueIdsSet = new Set<string>();
             const movingOutIdsSet = new Set<string>();
+            const pendingMoveOutBillIdsSet = new Set<string>();
 
             // Map to track the "Best" status for each room this month
             // Priority: paid > waiting_verify > overdue > unpaid
@@ -908,7 +911,6 @@ export default function DashboardClient() {
                 const activeTenant = (room.tenants as any[])?.find(t => t.status === 'active');
                 if (activeTenant?.planned_move_out_date) {
                     movingOutIdsSet.add(room.id);
-                    return;
                 }
 
                 const hasPendingMoveOutBill = (monthBills || []).some((b: any) =>
@@ -919,6 +921,7 @@ export default function DashboardClient() {
                 );
                 if (hasPendingMoveOutBill) {
                     movingOutIdsSet.add(room.id);
+                    pendingMoveOutBillIdsSet.add(room.id);
                 }
             });
 
@@ -949,6 +952,7 @@ export default function DashboardClient() {
             setUnpaidRoomIds(unpaidIdsSet);
             setOverdueRoomIds(overdueIdsSet);
             setMovingOutRoomIds(movingOutIdsSet);
+            setPendingMoveOutBillRoomIds(pendingMoveOutBillIdsSet);
 
             setStats({
                 total: activeRooms.length,
@@ -1508,6 +1512,7 @@ export default function DashboardClient() {
                         waitingVerifyRoomIds={waitingVerifyRoomIds}
                         overdueRoomIds={overdueRoomIds}
                         movingOutRoomIds={movingOutRoomIds}
+                        pendingMoveOutBillRoomIds={pendingMoveOutBillRoomIds}
                         formatThaiDate={formatThaiDate}
                         router={router}
                         setActiveTab={setActiveTab}

@@ -73,6 +73,8 @@ interface OverviewTabProps {
     waitingVerifyRoomIds: Set<string>;
     overdueRoomIds: Set<string>;
     movingOutRoomIds: Set<string>;
+    /** บิล move_out ยังค้าง — แยกจากแค่แจ้งวันย้ายล่วงหน้า */
+    pendingMoveOutBillRoomIds: Set<string>;
     formatThaiDate: (date: string | null | undefined) => string;
     router: any;
     setActiveTab: (tab: string) => void;
@@ -98,6 +100,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     waitingVerifyRoomIds,
     overdueRoomIds,
     movingOutRoomIds,
+    pendingMoveOutBillRoomIds,
     formatThaiDate,
     router,
     setActiveTab,
@@ -138,7 +141,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         rooms.forEach((room) => {
             if (waitingVerifyRoomIds.has(room.id)) count++;
             if (overdueRoomIds.has(room.id)) count++;
-            if (movingOutRoomIds.has(room.id)) count++;
+            if (pendingMoveOutBillRoomIds.has(room.id)) count++;
 
             const activeTenant = room.tenants?.find((t) => t.status === 'active');
             if (activeTenant?.planned_move_out_date) {
@@ -176,7 +179,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                     roomId: room.id
                 });
             }
-            if (movingOutRoomIds.has(room.id)) {
+            if (pendingMoveOutBillRoomIds.has(room.id)) {
                 notifications.push({
                     id: `move-out-bill-${room.id}`,
                     type: 'move_out_bill',
@@ -309,7 +312,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                                 </div>
                             )}
                             <div className="flex items-center gap-3 min-w-0">
-                                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[1.35rem] shadow-lg ring-4 ring-white/25 sm:h-16 sm:w-16">
+                                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl sm:h-12 sm:w-12">
                                     <HorpayHouseMark className="h-full w-full" />
                                 </div>
                                 <div className="min-w-0 flex flex-col justify-center leading-tight">

@@ -5,6 +5,7 @@ import { format, parseISO } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
+import { formatMeterScheduleLine } from '@/lib/meter-schedule'
 import ReceiptView from '@/src/components/ReceiptView'
 import {
     PhotoIcon,
@@ -125,6 +126,7 @@ function LIFFBillContent() {
                 const billTypeCode = bill.bill_type === 'move_out' ? 'MOV' : 'MON'
                 const billCode = String(bill.id || '').replace(/-/g, '').slice(-6).toUpperCase()
                 const dueDate = bill.due_date ? format(parseISO(bill.due_date), 'd MMMM yyyy', { locale: th }) : '-'
+                const meterScheduleLine = formatMeterScheduleLine(settings?.billing_day)
 
                 setData({
                     receiptId: `REC-${billTypeCode}-${room?.room_number || '000'}-${monthYearCode}-${billCode}`,
@@ -141,6 +143,7 @@ function LIFFBillContent() {
                     bankAccount: settings?.bank_account_name || dorm?.name || '-',
                     billType: bill.bill_type === 'move_out' ? 'move_out' : 'monthly',
                     billStatus: bill.status,
+                    ...(meterScheduleLine ? { meterScheduleLine } : {}),
                     items: items,
                     total: Number(bill.total_amount || 0)
                 })

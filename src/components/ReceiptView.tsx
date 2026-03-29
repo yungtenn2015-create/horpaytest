@@ -43,6 +43,8 @@ interface ReceiptViewProps {
         bankAccount: string;
         billType?: 'monthly' | 'move_out';
         billStatus?: 'paid' | 'waiting_verify' | 'unpaid' | 'overdue' | 'cancelled';
+        /** จาก dorm_settings.billing_day — เช่น รอบจดมิเตอร์ทุกวันที่ 20 */
+        meterScheduleLine?: string | null;
         items: Array<{ name: string; amount: number; detail?: string }>;
         total: number;
     };
@@ -89,6 +91,12 @@ const ReceiptView = forwardRef<HTMLDivElement, ReceiptViewProps>(({ data, slipUr
                         <p className="text-sm font-bold text-gray-500">{data.receiptId}</p>
                     </div>
                 </div>
+
+                {data.meterScheduleLine ? (
+                    <p className="mb-6 text-xs font-bold text-gray-500 leading-relaxed">
+                        {data.meterScheduleLine}
+                    </p>
+                ) : null}
 
                 {/* Tenant Name */}
                 <div className="mb-8 p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">

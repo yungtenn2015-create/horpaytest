@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { formatMeterScheduleLine } from '@/lib/meter-schedule';
 
 export async function POST(req: Request) {
   const supabaseAdmin = createClient(
@@ -142,6 +143,8 @@ function createBillFlexMessage(bill: any, dorm: any, bankSettings: any, billItem
     new Date(bill.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) :
     '-';
 
+  const meterScheduleLine = formatMeterScheduleLine(bankSettings?.billing_day);
+
   const extraServiceRows = (Array.isArray(billItems) ? billItems : [])
     .map((s) => ({
       name: String(s?.name || '').trim(),
@@ -251,6 +254,16 @@ function createBillFlexMessage(bill: any, dorm: any, bankSettings: any, billItem
               }
             ]
           },
+          ...(meterScheduleLine
+            ? [{
+              type: "text" as const,
+              text: meterScheduleLine,
+              color: "#6B7280",
+              size: "xs" as const,
+              margin: "sm" as const,
+              wrap: true
+            }]
+            : []),
           {
             type: "separator",
             margin: "xl",

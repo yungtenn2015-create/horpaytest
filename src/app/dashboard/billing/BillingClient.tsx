@@ -21,6 +21,7 @@ import {
     ClockIcon
 } from '@heroicons/react/24/outline'
 import ReceiptView from '@/src/components/ReceiptView'
+import { formatMeterScheduleLine } from '@/lib/meter-schedule'
 
 interface Room {
     id: string;
@@ -704,6 +705,8 @@ export default function BillingClient() {
             })
         }
 
+        const meterScheduleLine = formatMeterScheduleLine(dormSettings?.billing_day)
+
         const data = {
             receiptId: `PREVIEW-${item.roomNumber}`,
             date: formattedDate,
@@ -717,6 +720,7 @@ export default function BillingClient() {
             bankName: dormSettings?.bank_name || '-',
             bankNo: dormSettings?.bank_account_no || '-',
             bankAccount: dormSettings?.bank_account_name || dormName,
+            ...(meterScheduleLine ? { meterScheduleLine } : {}),
             items: itemsArr,
             total: item.rent + waterAmt + electricAmt + (Number(item.others) || 0)
         }

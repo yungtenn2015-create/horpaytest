@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { subDays, startOfDay, endOfDay, format } from 'date-fns';
+import { formatMeterScheduleLine } from '@/lib/meter-schedule';
 
 export async function GET(req: Request) {
   // We use GET so it can be easily triggered by a cron job URL call
@@ -129,6 +130,8 @@ function createOverdueFlexMessage(bill: any, dorm: any, bankSettings: any) {
     new Date(bill.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) :
     '-';
 
+  const meterScheduleLine = formatMeterScheduleLine(bankSettings?.billing_day);
+
   return {
     type: "flex",
     altText: `⚠️ แจ้งเตือนเกินกำหนดชำระ - ห้อง ${roomNumber} (฿${totalAmount.toLocaleString()})`,
@@ -189,6 +192,16 @@ function createOverdueFlexMessage(bill: any, dorm: any, bankSettings: any) {
                   { type: "text", text: billingMonth, color: "#111827", weight: "bold", size: "sm", align: "end" }
                 ]
               },
+              ...(meterScheduleLine
+                ? [{
+                  type: "text" as const,
+                  text: meterScheduleLine,
+                  color: "#6B7280",
+                  size: "xs" as const,
+                  margin: "xs" as const,
+                  wrap: true
+                }]
+                : []),
               {
                 type: "box",
                 layout: "horizontal",

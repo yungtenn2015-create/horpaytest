@@ -407,12 +407,8 @@ export default function RoomsTab({
                                                             )}
 
                                                             <div>
-                                                                <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1.5">UNIT</p>
                                                                 <h3 className="text-xl font-black text-gray-900 tracking-tight leading-none mb-2">
                                                                     {room.room_number}
-                                                                    {isOccupied && activeTenant?.line_user_id && (
-                                                                        <span className="ml-2 text-sm text-green-600 font-bold">(ตรงกัน)</span>
-                                                                    )}
                                                                 </h3>
                                                                 {isOccupied && activeTenant && (
                                                                     <div className="space-y-1.5 animate-in fade-in slide-in-from-left-2 duration-300">

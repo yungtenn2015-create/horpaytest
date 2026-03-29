@@ -79,7 +79,7 @@ export default function LoginPage() {
                     <div className="absolute w-28 h-28 rounded-full bg-white/5 bottom-4 -left-8" />
 
                     <div
-                        className="relative mb-4 h-20 w-20 overflow-hidden rounded-[1.35rem] shadow-lg ring-4 ring-white/25 sm:h-32 sm:w-32"
+                        className="relative mb-4 h-20 w-20 overflow-hidden rounded-[1.35rem] shadow-lg ring-4 ring-white/25 sm:h-20 sm:w-20"
                     >
                         <HorpayHouseMark className="h-full w-full" />
                     </div>
