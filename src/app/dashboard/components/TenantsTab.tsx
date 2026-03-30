@@ -53,8 +53,8 @@ export default function TenantsTab({
     userName
 }: TenantsTabProps) {
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col relative z-10 bg-gray-50 overflow-hidden">
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-50 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 {/* Header — โครงเดียวกับหน้าสถานะห้อง (RoomsTab) */}
                 <div className="relative min-h-[210px] shrink-0">
                     {/* พื้นเขียว + มุมมน — คลาสเดียวกับ RoomsTab */}
@@ -111,34 +111,46 @@ export default function TenantsTab({
                                 type="text"
                                 value={contractSearchQuery}
                                 onChange={(e) => setContractSearchQuery(e.target.value)}
-                                className="w-full h-14 rounded-2xl border-2 border-emerald-200 bg-white pl-12 pr-4 font-bold text-gray-900 shadow-md shadow-emerald-900/10 outline-none transition-all placeholder:text-gray-500 focus:border-primary focus:shadow-lg focus:shadow-emerald-900/15 focus:ring-2 focus:ring-primary/20"
+                                className="w-full h-12 rounded-xl border-2 border-emerald-200 bg-white pl-12 pr-4 text-sm font-bold text-gray-900 shadow-md shadow-emerald-900/10 outline-none transition-all placeholder:text-gray-500 focus:border-primary focus:shadow-lg focus:shadow-emerald-900/15 focus:ring-2 focus:ring-primary/20"
                                 placeholder="ค้นหาตาม ชื่อ, เบอร์โทรศัพท์ หรือ ห้อง..."
                             />
                         </div>
 
-                        {/* Category Tabs */}
-                        <div className="rounded-[2rem] border-2 border-emerald-200 bg-white p-1.5 shadow-md shadow-emerald-900/10">
-                            <div className="flex gap-1 rounded-[1.75rem] bg-emerald-100 p-1">
+                        {/* Category Tabs — โทนเขียวเดียวกับหัวหน้า ไม่ใช้สีน้ำเงินตอน active */}
+                        <div className="rounded-2xl border border-emerald-100 bg-white p-1 shadow-sm shadow-emerald-900/5">
+                            <div className="flex gap-1">
                                 <button
+                                    type="button"
                                     onClick={() => setContractTab('active')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[1.5rem] font-black text-[13px] transition-all duration-300 ${contractTab === 'active' ? 'bg-white text-blue-600 shadow-md ring-1 ring-emerald-300/80 shadow-emerald-900/10' : 'text-emerald-900/55 hover:bg-white/70 hover:text-emerald-900'}`}
+                                    className={`flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-2.5 text-center font-black transition-all duration-200 sm:flex-row sm:gap-1.5 sm:py-3 sm:text-[13px] ${contractTab === 'active'
+                                        ? 'bg-primary text-white shadow-md shadow-emerald-900/25'
+                                        : 'text-emerald-800/55 hover:bg-emerald-50/90 hover:text-emerald-900'
+                                        }`}
                                 >
-                                    <UsersIcon className="w-4 h-4" />
-                                    กำลังเข้าพัก
+                                    <UsersIcon className={`h-4 w-4 shrink-0 stroke-[2.5] ${contractTab === 'active' ? 'text-white' : ''}`} />
+                                    <span className="max-w-[5.5rem] text-[11px] leading-tight sm:max-w-none">กำลังเข้าพัก</span>
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => setContractTab('pending')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[1.5rem] font-black text-[13px] transition-all duration-300 ${contractTab === 'pending' ? 'bg-white text-blue-600 shadow-md ring-1 ring-emerald-300/80 shadow-emerald-900/10' : 'text-emerald-900/55 hover:bg-white/70 hover:text-emerald-900'}`}
+                                    className={`flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-2.5 text-center font-black transition-all duration-200 sm:flex-row sm:gap-1.5 sm:py-3 sm:text-[13px] ${contractTab === 'pending'
+                                        ? 'bg-primary text-white shadow-md shadow-emerald-900/25'
+                                        : 'text-emerald-800/55 hover:bg-emerald-50/90 hover:text-emerald-900'
+                                        }`}
                                 >
-                                    <PlusIcon className="w-4 h-4" />
-                                    สัญญาใหม่
+                                    <PlusIcon className={`h-4 w-4 shrink-0 stroke-[2.5] ${contractTab === 'pending' ? 'text-white' : ''}`} />
+                                    <span className="max-w-[5.5rem] text-[11px] leading-tight sm:max-w-none">สัญญาใหม่</span>
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => setContractTab('old')}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-[1.5rem] font-black text-[13px] transition-all duration-300 ${contractTab === 'old' ? 'bg-white text-blue-600 shadow-md ring-1 ring-emerald-300/80 shadow-emerald-900/10' : 'text-emerald-900/55 hover:bg-white/70 hover:text-emerald-900'}`}
+                                    className={`flex min-h-[48px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-2.5 text-center font-black transition-all duration-200 sm:flex-row sm:gap-1.5 sm:py-3 sm:text-[13px] ${contractTab === 'old'
+                                        ? 'bg-primary text-white shadow-md shadow-emerald-900/25'
+                                        : 'text-emerald-800/55 hover:bg-emerald-50/90 hover:text-emerald-900'
+                                        }`}
                                 >
-                                    <ClockIcon className="w-4 h-4" />
-                                    สัญญาเก่า
+                                    <ClockIcon className={`h-4 w-4 shrink-0 stroke-[2.5] ${contractTab === 'old' ? 'text-white' : ''}`} />
+                                    <span className="max-w-[5.5rem] text-[11px] leading-tight sm:max-w-none">สัญญาเก่า</span>
                                 </button>
                             </div>
                         </div>
@@ -193,32 +205,32 @@ export default function TenantsTab({
                                     {filtered.map((contract) => (
                                         <div
                                             key={contract.id}
-                                            className={`bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden ${contract.status === 'moved_in' ? 'hover:border-blue-100' : 'hover:border-green-100'}`}
+                                            className={`bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden ${contract.status === 'moved_in' ? 'hover:border-emerald-100' : 'hover:border-green-100'}`}
                                         >
-                                            <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 ${contract.status === 'moved_in' ? 'bg-blue-50/50' : 'bg-green-50/50'}`} />
+                                            <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 ${contract.status === 'moved_in' ? 'bg-emerald-50/60' : 'bg-green-50/50'}`} />
 
 
                                             <div className="flex items-start justify-between relative z-10">
                                                 <div className="flex items-start gap-4">
                                                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border transition-colors duration-300 ${contract.status === 'moved_in'
-                                                        ? 'bg-blue-50 text-blue-600 border-blue-100 group-hover:bg-blue-600'
+                                                        ? 'bg-emerald-50 text-primary border-emerald-100 group-hover:bg-primary'
                                                         : 'bg-green-50 text-green-600 border-green-100 group-hover:bg-green-600'
                                                         } group-hover:text-white`}>
                                                         <UserIcon className="w-6 h-6" />
                                                     </div>
                                                     <div>
                                                         <div className="flex items-center flex-wrap gap-2">
-                                                            <h3 className={`text-lg font-black text-gray-800 tracking-tight transition-colors ${contract.status === 'moved_in' ? 'group-hover:text-blue-700' : 'group-hover:text-green-700'}`}>{contract.name}</h3>
+                                                            <h3 className={`text-lg font-black text-gray-800 tracking-tight transition-colors ${contract.status === 'moved_in' ? 'group-hover:text-primary' : 'group-hover:text-green-700'}`}>{contract.name}</h3>
                                                             {(contract as any).tenants?.[0]?.rooms?.room_number && (
                                                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border uppercase tracking-widest ${contract.status === 'moved_in'
-                                                                    ? 'bg-blue-50 text-blue-600 border-blue-100'
+                                                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
                                                                     : 'bg-green-100 text-green-700 border-green-200'
                                                                     }`}>
                                                                     ห้อง {(contract as any).tenants[0].rooms.room_number}
                                                                 </span>
                                                             )}
                                                             {contract.status === 'moved_in' && (
-                                                                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px] font-black border border-blue-100 uppercase tracking-widest">
+                                                                <span className="px-2 py-0.5 bg-emerald-50 text-primary rounded-md text-[10px] font-black border border-emerald-100 uppercase tracking-widest">
                                                                     พักอยู่ปัจจุบัน
                                                                 </span>
                                                             )}
@@ -233,7 +245,7 @@ export default function TenantsTab({
                                                     <button
                                                         onClick={() => openEditContract(contract)}
                                                         className={`w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center transition-all active:scale-90 ${(contract.status === 'moved_in' || contract.status === 'pending')
-                                                            ? `text-gray-400 ${contract.status === 'moved_in' ? 'hover:bg-blue-50 hover:text-blue-600' : 'hover:bg-green-50 hover:text-green-600'}`
+                                                            ? `text-gray-400 ${contract.status === 'moved_in' ? 'hover:bg-emerald-50 hover:text-primary' : 'hover:bg-green-50 hover:text-green-600'}`
                                                             : `text-green-400 hover:bg-green-50 hover:text-green-600`
                                                             }`}
                                                         title={(contract.status === 'moved_in' || contract.status === 'pending') ? "แก้ไข" : "ดูข้อมูล"}
@@ -272,7 +284,7 @@ export default function TenantsTab({
                                             <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between relative z-10">
                                                 <div className="flex items-center gap-3">
                                                     {contract.car_registration && (
-                                                        <div className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 ${contract.status === 'moved_in' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-700'}`}>
+                                                        <div className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 ${contract.status === 'moved_in' ? 'bg-emerald-50 text-primary' : 'bg-green-50 text-green-700'}`}>
                                                             🚗 {contract.car_registration}
                                                         </div>
                                                     )}

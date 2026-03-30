@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
+import { HorpayHouseMark } from '@/src/components/HorpayHouseMark'
 import {
     ArrowLeftIcon,
     PlusIcon,
@@ -427,18 +428,38 @@ export default function RoomsClient() {
         <div className="min-h-screen bg-gray-50 sm:flex sm:items-center sm:justify-center sm:py-8 font-sans text-gray-800">
             <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-gray-50 sm:max-w-lg sm:min-h-[850px] sm:rounded-[2.5rem] sm:shadow-2xl">
 
-                <header className="bg-primary pt-12 pb-10 px-6 rounded-b-[2.5rem] relative shrink-0 shadow-lg shadow-green-100">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                    <div className="relative z-10 flex items-center gap-4">
-                        <button
-                            onClick={() => router.push('/dashboard')}
-                            className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-2xl flex items-center justify-center text-white backdrop-blur-md transition-all active:scale-95"
-                        >
-                            <ArrowLeftIcon className="w-5 h-5 stroke-[3]" />
-                        </button>
-                        <div>
-                            <h1 className="text-2xl font-black text-white tracking-tight drop-shadow-md">จัดการห้องพัก</h1>
-                            <p className="text-white/80 text-xs font-bold mt-1">ตั้งค่าราคาและข้อมูลห้อง</p>
+                <header className="relative isolate shrink-0 overflow-hidden rounded-b-[2.5rem] bg-primary shadow-lg shadow-green-100">
+                    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-b-[2.5rem]">
+                        <div className="absolute top-[-20%] right-[-10%] h-72 w-72 rounded-full bg-white/10 blur-3xl" />
+                        <div className="absolute bottom-[-10%] left-[-10%] h-56 w-56 rounded-full bg-white/5 blur-2xl" />
+                    </div>
+                    <div className="relative z-10 px-6 pb-8 pt-8">
+                        <div className="mb-5 flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => router.push('/dashboard')}
+                                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/20 text-white shadow-sm backdrop-blur-md transition-all hover:bg-white/30 active:scale-95"
+                                    aria-label="กลับ"
+                                >
+                                    <ArrowLeftIcon className="h-5 w-5 stroke-[3]" />
+                                </button>
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg">
+                                        <HorpayHouseMark className="h-full w-full" />
+                                    </div>
+                                    <div className="min-w-0 leading-tight">
+                                        <p className="truncate text-base font-bold tracking-tight text-white">HORPAY</p>
+                                        <p className="truncate text-[9px] font-medium text-white/70">ระบบจัดการหอพัก</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="min-w-0">
+                            <h1 className="font-headline text-2xl font-black tracking-tight text-white drop-shadow-sm sm:text-3xl">
+                                จัดการห้องพัก
+                            </h1>
+                            <p className="mt-1.5 text-xs font-bold text-white/85">ตั้งค่าราคาและข้อมูลห้อง</p>
                         </div>
                     </div>
                 </header>

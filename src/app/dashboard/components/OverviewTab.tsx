@@ -13,6 +13,7 @@ import {
     Squares2X2Icon,
     ChatBubbleLeftRightIcon,
     LockClosedIcon,
+    BookOpenIcon,
     HomeIcon,
     UsersIcon,
     ArrowPathIcon,
@@ -254,6 +255,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                                                 router.push(`/dashboard/move-out?roomId=${notif.roomId}`);
                                                 return;
                                             }
+                                            if (notif.type === 'overdue') {
+                                                router.push(`/dashboard/billing?roomId=${notif.roomId}&status=overdue`);
+                                                return;
+                                            }
                                             router.push(`/dashboard/billing?roomId=${notif.roomId}`);
                                         }}
                                         className="w-full text-left p-4 rounded-2xl hover:bg-gray-50 transition-all group flex gap-4"
@@ -292,7 +297,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
     };
 
     return (
-        <div className="bg-gray-50 font-body text-slate-800 antialiased min-h-screen pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto h-full">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-gray-50 pb-24 font-body text-slate-800 antialiased animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Hero Section */}
             <div className="relative min-h-[210px]">
                 {/* Background with clipping */}
@@ -394,7 +399,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                                                 <div className="flex items-center justify-between gap-3">
                                                     <div className="min-w-0 flex-1 pr-1">
                                                         <p className="text-[13px] font-black leading-snug tracking-tight text-gray-600 sm:text-[13px]">
-                                                            อ่านคู่มือและแจ้งปัญหาติดต่อ
+                                                            แจ้งปัญหาติดต่อ
                                                         </p>
                                                     </div>
                                                     <a
@@ -410,6 +415,19 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                                                 </div>
                                             </div>
                                             <div className="p-2.5 space-y-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setIsMenuOpen(false)
+                                                        router.push('/dashboard/help')
+                                                    }}
+                                                    className="w-full flex items-center gap-4 px-4 py-4 text-left text-gray-700 hover:bg-green-50 rounded-2xl transition-all font-bold text-[14.5px] group"
+                                                >
+                                                    <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center group-hover:bg-white group-hover:shadow-sm">
+                                                        <BookOpenIcon className="w-5 h-5 text-gray-400 group-hover:text-green-600 stroke-[2.5]" />
+                                                    </div>
+                                                    คู่มือการใช้งาน
+                                                </button>
                                                 <button onClick={() => { setIsMenuOpen(false); setActiveTab('settings'); setActiveSettingsTab('dorm'); }} className="w-full flex items-center gap-4 px-4 py-4 text-left text-gray-700 hover:bg-green-50 rounded-2xl transition-all font-bold text-[14.5px] group">
                                                     <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center group-hover:bg-white group-hover:shadow-sm">
                                                         <BuildingOfficeIcon className="w-5 h-5 text-gray-400 group-hover:text-green-600 stroke-[2.5]" />

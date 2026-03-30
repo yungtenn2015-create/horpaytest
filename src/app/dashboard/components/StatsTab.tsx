@@ -56,7 +56,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
     userName
 }) => {
     return (
-        <div className="bg-gray-50 font-body text-slate-800 antialiased min-h-screen pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto h-full overflow-x-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-gray-50 pb-24 font-body text-slate-800 antialiased animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Hero Section */}
             <div className="relative min-h-[210px]">
                 {/* Background with clipping */}

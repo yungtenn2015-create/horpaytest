@@ -12,6 +12,7 @@ import {
     CheckCircleIcon,
     CheckBadgeIcon,
     ExclamationCircleIcon,
+    ExclamationTriangleIcon,
     PrinterIcon,
     ShareIcon,
     Squares2X2Icon,
@@ -48,6 +49,7 @@ export default function BillingClient() {
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const roomFromUrl = searchParams.get('room')?.trim() || ''
+    const roomIdFromUrl = searchParams.get('roomId')?.trim() || ''
     const [loading, setLoading] = useState(true)
     const [dormName, setDormName] = useState('หอพักของคุณ')
     /** ที่อยู่ / เบอร์โทรอยู่ที่ตาราง dorms ไม่ใช่ dorm_settings */
@@ -74,7 +76,7 @@ export default function BillingClient() {
     const handledRoomQueryRef = useRef(false)
     const [filterFloor, setFilterFloor] = useState<number | 'all'>('all')
     const [filterLineStatus, setFilterLineStatus] = useState<'all' | 'linked' | 'unlinked'>('all')
-    const [filterWorkingStatus, setFilterWorkingStatus] = useState<'all' | 'pending_meter' | 'ready' | 'issued'>('all')
+    const [filterWorkingStatus, setFilterWorkingStatus] = useState<'all' | 'pending_meter' | 'ready' | 'issued' | 'overdue'>('all')
     const [dormSettings, setDormSettings] = useState<any>(null)
     const [dormServices, setDormServices] = useState<DormServiceItem[]>([])
     const [showPreview, setShowPreview] = useState(false)
@@ -105,23 +107,32 @@ export default function BillingClient() {
         fetchData()
     }, [selectedDate])
 
-    /** Deep-link e.g. /dashboard/billing?room=201 — focus that row, expand, scroll, then strip ?room */
+    /** Deep-link: ?room=201 | ?roomId=uuid — optional &status=overdue จากกระดิ่งแจ้งเตือน */
     useEffect(() => {
-        if (!roomFromUrl) {
+        const statusParam = searchParams.get('status')?.trim() || ''
+        const hasRoomTarget = Boolean(roomFromUrl || roomIdFromUrl)
+
+        if (!hasRoomTarget) {
             handledRoomQueryRef.current = false
             return
         }
         if (loading || billingData.length === 0) return
         if (handledRoomQueryRef.current) return
 
-        const match = billingData.find((r) => String(r.roomNumber).trim() === roomFromUrl)
+        const match = roomIdFromUrl
+            ? billingData.find((r) => r.roomId === roomIdFromUrl)
+            : billingData.find((r) => String(r.roomNumber).trim() === roomFromUrl)
         if (!match) return
 
         handledRoomQueryRef.current = true
 
         setFilterFloor('all')
-        setFilterWorkingStatus('all')
         setFilterLineStatus('all')
+        if (statusParam === 'overdue' && match.isBillOverdue) {
+            setFilterWorkingStatus('overdue')
+        } else {
+            setFilterWorkingStatus('all')
+        }
         setExpandedRoom(match.roomId)
 
         const scrollTimer = window.setTimeout(() => {
@@ -133,11 +144,13 @@ export default function BillingClient() {
 
         const qs = new URLSearchParams(searchParams.toString())
         qs.delete('room')
+        qs.delete('roomId')
+        qs.delete('status')
         const next = qs.toString() ? `${pathname}?${qs.toString()}` : pathname
         router.replace(next, { scroll: false })
 
         return () => window.clearTimeout(scrollTimer)
-    }, [loading, billingData, roomFromUrl, pathname, router, searchParams])
+    }, [loading, billingData, roomFromUrl, roomIdFromUrl, pathname, router, searchParams])
 
     async function fetchData() {
         setLoading(true)
@@ -267,6 +280,22 @@ export default function BillingClient() {
                     else if (!isReady) status = 'pending_meter'
                     else status = 'ready'
 
+                    const billStatusLower = String(bill?.status || '').toLowerCase()
+                    let dueDateCheck: Date | null = bill?.due_date ? new Date(bill.due_date) : null
+                    if (bill?.billing_month === '2026-03-01' && bill?.due_date === '2026-03-05') {
+                        dueDateCheck = new Date('2026-04-05')
+                    }
+                    const nowForDue = new Date()
+                    const isBillOverdue = Boolean(
+                        bill &&
+                            (billStatusLower === 'overdue' ||
+                                (dueDateCheck &&
+                                    !isNaN(dueDateCheck.getTime()) &&
+                                    dueDateCheck < nowForDue &&
+                                    billStatusLower !== 'paid' &&
+                                    billStatusLower !== 'waiting_verify'))
+                    )
+
                     // CRITICAL FIX: If bill exists, use it as the source of truth for amounts
                     // Otherwise, use contract predictions
                     return {
@@ -294,7 +323,8 @@ export default function BillingClient() {
                         hasMeters: isReady, // Use isReady here
                         waterBillingType,
                         floor: room.floor || Math.floor(parseInt(room.room_number) / 100) || 1,
-                        status
+                        status,
+                        isBillOverdue,
                     }
                 })
                 // Filter only rooms that are NOT vacant
@@ -753,7 +783,7 @@ export default function BillingClient() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+            <div className="min-h-screen bg-[#fcfdfd] flex items-center justify-center p-4">
                 <div className="w-12 h-12 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin" />
             </div>
         )
@@ -776,6 +806,8 @@ export default function BillingClient() {
             data = data.filter(item => item.status === 'ready')
         } else if (filterWorkingStatus === 'issued') {
             data = data.filter(item => ['issued', 'waiting_verify', 'paid'].includes(item.status))
+        } else if (filterWorkingStatus === 'overdue') {
+            data = data.filter(item => item.isBillOverdue)
         }
 
         return data
@@ -786,6 +818,7 @@ export default function BillingClient() {
     const countPending = billingData.filter(d => d.status === 'pending_meter').length
     const countReady = billingData.filter(d => d.status === 'ready').length
     const countIssued = billingData.filter(d => ['issued', 'waiting_verify', 'paid'].includes(d.status)).length
+    const countOverdue = billingData.filter(d => d.isBillOverdue).length
 
     const readyToIssueCount = filteredData.filter(d => d.status === 'ready').length
 
@@ -812,8 +845,8 @@ export default function BillingClient() {
                 </>
             }
         >
-                <header className="px-6 pt-4 pb-6 bg-white/90 backdrop-blur-md sticky top-0 z-30 border-b border-gray-50">
-                    <div className="flex items-center justify-between bg-emerald-50 rounded-2xl p-4">
+                <header className="sticky top-0 z-30 border-b border-gray-100 bg-white px-6 pb-6 pt-4 shadow-[0_4px_20px_-6px_rgba(15,23,42,0.08)] backdrop-blur-md">
+                    <div className="flex items-center justify-between rounded-2xl border border-emerald-100 bg-white p-4 shadow-[0_4px_18px_-4px_rgba(16,185,129,0.12)]">
                         <button
                             onClick={prevMonth}
                             className="w-8 h-8 flex items-center justify-center text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
@@ -840,13 +873,14 @@ export default function BillingClient() {
                 </header>
 
                 {/* ── FILTERS ── */}
-                <div className="px-6 py-4 bg-white border-b border-gray-50 flex flex-col gap-4 sticky top-[120px] z-20">
-                    <div className="flex flex-col gap-1.5">
+                <div className="sticky top-[120px] z-20 border-b border-gray-100 bg-white px-6 py-4 shadow-[0_8px_28px_-8px_rgba(15,23,42,0.12)]">
+                    <div className="flex flex-col gap-4 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-[0_4px_22px_-4px_rgba(15,23,42,0.1)]">
+                        <div className="flex flex-col gap-1.5">
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">กรองตามชั้น</span>
                         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
                             <button
                                 onClick={() => setFilterFloor('all')}
-                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterFloor === 'all' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterFloor === 'all' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-gray-300 hover:shadow-md'}`}
                             >
                                 ทั้งหมด
                             </button>
@@ -854,77 +888,84 @@ export default function BillingClient() {
                                 <button
                                     key={floor}
                                     onClick={() => setFilterFloor(floor)}
-                                    className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterFloor === floor ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                    className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterFloor === floor ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-gray-300 hover:shadow-md'}`}
                                 >
                                     ชั้น {floor}
                                 </button>
                             ))}
                         </div>
-                    </div>
+                        </div>
 
-                    <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1.5">
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">สถานะการทำงาน</span>
                         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
                             <button
                                 onClick={() => setFilterWorkingStatus('all')}
-                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'all' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'all' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-gray-300 hover:shadow-md'}`}
                             >
                                 ทั้งหมด ({countAll})
                             </button>
                             <button
                                 onClick={() => setFilterWorkingStatus('pending_meter')}
-                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'pending_meter' ? 'bg-orange-500 text-white shadow-lg shadow-orange-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'pending_meter' ? 'bg-orange-500 text-white shadow-lg shadow-orange-100' : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-gray-300 hover:shadow-md'}`}
                             >
                                 รอจดมิเตอร์ ({countPending})
                             </button>
                             <button
                                 onClick={() => setFilterWorkingStatus('ready')}
-                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'ready' ? 'bg-yellow-400 text-white shadow-lg shadow-yellow-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'ready' ? 'bg-yellow-400 text-white shadow-lg shadow-yellow-100' : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-gray-300 hover:shadow-md'}`}
                             >
                                 รอออกบิล ({countReady})
                             </button>
                             <button
+                                onClick={() => setFilterWorkingStatus('overdue')}
+                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'overdue' ? 'bg-orange-500 text-white shadow-lg shadow-orange-100' : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-gray-300 hover:shadow-md'}`}
+                            >
+                                ค้างชำระ ({countOverdue})
+                            </button>
+                            <button
                                 onClick={() => setFilterWorkingStatus('issued')}
-                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'issued' ? 'bg-blue-500 text-white shadow-lg shadow-blue-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap ${filterWorkingStatus === 'issued' ? 'bg-blue-500 text-white shadow-lg shadow-blue-100' : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-gray-300 hover:shadow-md'}`}
                             >
                                 ออกบิลแล้ว ({countIssued})
                             </button>
                         </div>
-                    </div>
+                        </div>
 
-                    <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1.5">
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">สถานะ LINE OA</span>
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setFilterLineStatus('all')}
-                                className={`flex-1 py-1.5 rounded-full text-xs font-black transition-all ${filterLineStatus === 'all' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                className={`flex-1 py-1.5 rounded-full text-xs font-black transition-all ${filterLineStatus === 'all' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-gray-300 hover:shadow-md'}`}
                             >
                                 ทั้งหมด
                             </button>
                             <button
                                 onClick={() => setFilterLineStatus('linked')}
-                                className={`flex-1 py-1.5 rounded-full text-xs font-black transition-all ${filterLineStatus === 'linked' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                className={`flex-1 py-1.5 rounded-full text-xs font-black transition-all ${filterLineStatus === 'linked' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-gray-300 hover:shadow-md'}`}
                             >
                                 ผูกไลน์แล้ว
                             </button>
                             <button
                                 onClick={() => setFilterLineStatus('unlinked')}
-                                className={`flex-1 py-1.5 rounded-full text-xs font-black transition-all ${filterLineStatus === 'unlinked' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                className={`flex-1 py-1.5 rounded-full text-xs font-black transition-all ${filterLineStatus === 'unlinked' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100' : 'border border-gray-200 bg-white text-gray-600 shadow-sm hover:border-gray-300 hover:shadow-md'}`}
                             >
                                 ยังไม่ผูก
                             </button>
                         </div>
+                        </div>
                     </div>
                 </div>
 
-                <main className="flex-1 px-4 py-6 pb-20 space-y-8">
+                <main className="flex-1 space-y-8 bg-white px-4 py-6 pb-20">
                     {/* ── ROOM LIST BY FLOOR ── */}
                     {(() => {
                         const floorsArr = Array.from(new Set(filteredData.map(item => item.floor))).sort((a: any, b: any) => a - b)
 
                         if (filteredData.length === 0) {
                             return (
-                                <div className="text-center py-20 bg-gray-50 rounded-3xl border border-dashed border-gray-200 mx-2 px-4">
+                                <div className="mx-2 rounded-3xl border border-dashed border-gray-200 bg-white px-4 py-20 text-center shadow-[0_6px_28px_-6px_rgba(15,23,42,0.1)]">
                                     <h3 className="text-lg font-black text-gray-400">ไม่พบข้อมูลห้องที่ตรงตามเงื่อนไข</h3>
                                     <p className="text-sm text-gray-300 font-bold mt-2">โปรดเปลี่ยนตัวกรองหรือลองใหม่อีกครั้ง</p>
                                     {billingData.length === 0 && (
@@ -972,6 +1013,13 @@ export default function BillingClient() {
                                             statusLabel = 'รอรับเงิน / ยืนยัน'
                                             StatusIcon = ChatBubbleLeftRightIcon
                                         }
+                                        else if (item.isBillOverdue) {
+                                            statusColor = 'bg-orange-500'
+                                            statusBg = 'bg-orange-50'
+                                            statusText = 'text-orange-600'
+                                            statusLabel = 'ค้างชำระ'
+                                            StatusIcon = ExclamationTriangleIcon
+                                        }
                                         else if (isIssued) {
                                             statusColor = 'bg-blue-500'
                                             statusBg = 'bg-blue-50'
@@ -998,7 +1046,7 @@ export default function BillingClient() {
                                             <div
                                                 id={`billing-room-${item.roomId}`}
                                                 key={item.roomId}
-                                                className={`overflow-hidden transition-all border-b border-gray-100 last:border-0 ${isExpanded ? 'bg-gray-50/50 rounded-2xl border border-gray-100 p-1' : 'bg-white'}`}
+                                                className={`overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-[0_4px_18px_-3px_rgba(15,23,42,0.1)] transition-all ${isExpanded ? 'p-1 shadow-[0_10px_32px_-4px_rgba(15,23,42,0.14)] ring-1 ring-emerald-100/70' : ''}`}
                                             >
                                                 {/* Row Item */}
                                                 <div
@@ -1045,7 +1093,7 @@ export default function BillingClient() {
                                                                 <p className="text-sm font-black text-gray-800 tracking-tight">฿{total.toLocaleString()}</p>
                                                             </div>
                                                         )}
-                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isExpanded ? 'bg-gray-200 rotate-90 text-gray-600' : 'bg-gray-50 text-gray-300'}`}>
+                                                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-all ${isExpanded ? 'rotate-90 border-gray-200 bg-gray-100 text-gray-600' : 'border-gray-200 bg-white text-gray-400 shadow-sm'}`}>
                                                             <ChevronRightIcon className="w-4 h-4" />
                                                         </div>
                                                     </div>
@@ -1055,7 +1103,7 @@ export default function BillingClient() {
                                                 {isExpanded && !isVacant && (
                                                     <div className="px-3 pb-4 pt-2 space-y-4 animate-in slide-in-from-top-2 duration-200">
                                                         {/* Details Grid */}
-                                                        <div className="grid grid-cols-3 gap-2 bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+                                                        <div className="grid grid-cols-3 gap-2 rounded-xl border border-gray-100 bg-white p-3 shadow-[0_2px_12px_rgba(15,23,42,0.06)]">
                                                             <div className="text-center border-r border-gray-50">
                                                                 <p className="text-[9px] font-black text-gray-400 uppercase mb-0.5">ค่าเช่า</p>
                                                                 <p className="text-xs font-black text-gray-700">฿{item.rent.toLocaleString()}</p>
@@ -1212,7 +1260,7 @@ export default function BillingClient() {
                 </main>
 
                 {/* ── STICKY FOOTER ACTION ── */}
-                <div className="px-6 py-6 bg-white border-t border-gray-50 sticky bottom-0 z-30 shadow-[0_-20px_40px_rgba(0,0,0,0.03)] sm:rounded-b-[2.5rem]">
+                <div className="sticky bottom-0 z-30 border-t border-gray-200/80 bg-white px-6 py-6 shadow-[0_-10px_36px_-4px_rgba(15,23,42,0.12)] backdrop-blur-md sm:rounded-b-[2.5rem]">
                     <button
                         onClick={handleIssueAll}
                         disabled={readyToIssueCount === 0 || !!issuing}

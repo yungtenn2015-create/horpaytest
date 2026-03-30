@@ -18,9 +18,10 @@ import {
     BoltIcon,
     Squares2X2Icon,
     KeyIcon,
-    XMarkIcon,
     UserIcon
 } from '@heroicons/react/24/outline'
+
+import { DashboardMenuPageChrome } from '@/src/components/dashboard/DashboardMenuPageChrome'
 
 import {
     BanknotesIcon as BanknotesSolid,
@@ -216,25 +217,13 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
     }
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto h-full px-6 pt-12 pb-32">
-            <div className="mb-8 flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                    <h1 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-3 flex-wrap">
-                        <span className="text-4xl shrink-0">⚙️</span>
-                        <span>ตั้งค่าระบบ</span>
-                    </h1>
-                    <p className="text-gray-400 font-bold text-sm mt-1">จัดการข้อมูลหอพักและตั้งค่าการแจ้งเตือน</p>
-                </div>
-                <button
-                    type="button"
-                    onClick={onCloseSettings}
-                    className="shrink-0 mt-1 w-11 h-11 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-colors active:scale-95 border border-gray-200/80"
-                    aria-label="ปิดและกลับหน้าหลัก"
-                >
-                    <XMarkIcon className="w-6 h-6 stroke-[2.5]" />
-                </button>
-            </div>
-
+        <DashboardMenuPageChrome
+            embedded
+            title="ตั้งค่าระบบ"
+            subtitle="จัดการข้อมูลหอพักและตั้งค่าการแจ้งเตือน"
+            onBack={onCloseSettings}
+        >
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 px-6 pt-4 pb-44">
             <div className="mb-8">
                 <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black ${isDormSection ? 'bg-gray-50 text-gray-700 border-gray-200' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
                     {isDormSection ? <BuildingOfficeIcon className="w-4 h-4" /> : <ChatBubbleLeftRightIcon className="w-4 h-4" />}
@@ -574,7 +563,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
 
                 {isLineSection && (
                     <div className="space-y-6">
-                        <div className="bg-gray-50/50 rounded-3xl p-6 border border-gray-100/50 backdrop-blur-sm shadow-sm group hover:shadow-md transition-all duration-300">
+                        <div className="relative rounded-3xl border border-gray-100 bg-white p-6 shadow-sm backdrop-blur-sm transition-all duration-300 group hover:shadow-md">
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-4">
                                     <div className="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center text-green-600 shadow-sm shadow-green-100">
@@ -602,7 +591,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                                 </div>
                             </div>
 
-                            <div className={`grid gap-6 transition-all duration-500 transform ${showLineConfig ? 'opacity-100 translate-y-0 filter-none' : 'opacity-40 translate-y-2 pointer-events-none grayscale-0'}`}>
+                            <div className={`relative grid gap-6 transition-all duration-500 transform ${showLineConfig ? 'opacity-100 translate-y-0 filter-none' : 'opacity-40 translate-y-2 pointer-events-none grayscale-0'}`}>
                                 {/* Overlay message when locked */}
                                 {!showLineConfig && (
                                     <div className="absolute inset-0 z-50 flex items-center justify-center p-8 text-center bg-white/50 backdrop-blur-[2px] rounded-[2.5rem]">
@@ -623,7 +612,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                                             readOnly
                                             type="text"
                                             value={typeof window !== 'undefined' ? `${window.location.origin}/api/line/webhook` : ''}
-                                            className="w-full h-14 bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 pr-14 font-mono text-[11px] font-bold text-gray-500 transition-all outline-none"
+                                            className="w-full h-14 rounded-2xl border-2 border-gray-200 bg-white px-5 pr-14 font-mono text-[11px] font-bold text-gray-800 transition-all outline-none"
                                         />
                                         <button
                                             onClick={() => copyToClipboard(typeof window !== 'undefined' ? `${window.location.origin}/api/line/webhook` : '')}
@@ -642,7 +631,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                                         readOnly
                                         type="text"
                                         value={lineConfig.channel_id}
-                                        className="w-full h-14 bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 font-bold text-gray-500 cursor-not-allowed outline-none shadow-sm"
+                                        className="h-14 w-full cursor-not-allowed rounded-2xl border-2 border-gray-200 bg-white px-5 font-bold text-gray-800 outline-none shadow-sm"
                                         placeholder="จะปรากฏเมื่อทดสอบสำเร็จ..."
                                     />
                                 </div>
@@ -705,7 +694,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
 
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="flex-1">
-                                                <div className={`h-12 rounded-2xl px-4 flex items-center justify-between border-2 ${ownerClaim.code ? (ownerClaimStatus.isExpired ? 'bg-amber-50 border-amber-100' : 'bg-gray-50 border-gray-100') : 'bg-gray-50 border-gray-100'}`}>
+                                                <div className={`flex h-12 items-center justify-between rounded-2xl border-2 px-4 ${ownerClaim.code ? (ownerClaimStatus.isExpired ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-white') : 'border-gray-200 bg-white'}`}>
                                                     <span className={`font-mono text-[13px] font-black ${ownerClaim.code ? 'text-gray-800' : 'text-gray-400'}`}>
                                                         {ownerClaim.code ? `owner-${ownerClaim.code}` : 'ยังไม่มีรหัส'}
                                                     </span>
@@ -783,12 +772,12 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                 </div>
             )}
 
-            {/* Floating Save Button within Settings Drawer */}
-            <div className="absolute bottom-[25px] left-0 right-0 px-6 sm:max-w-lg sm:mx-auto">
+            {/* เหนือแถบนำทางล่าง (h-[92px]) — fixed จึงเลื่อนเนื้อหาได้เต็มที่ */}
+            <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[90] w-full max-w-lg -translate-x-1/2 px-6">
                 <button
                     onClick={handleSaveSettings}
                     disabled={savingSettings}
-                    className="w-full h-16 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-2xl font-black text-lg shadow-xl shadow-green-100/50 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
+                    className="pointer-events-auto w-full h-16 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-2xl font-black text-lg shadow-xl shadow-green-100/50 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
                 >
                     {savingSettings ? (
                         <ArrowPathIcon className="w-6 h-6 animate-spin" />
@@ -798,6 +787,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                 </button>
             </div>
         </div>
+        </DashboardMenuPageChrome>
     )
 }
 

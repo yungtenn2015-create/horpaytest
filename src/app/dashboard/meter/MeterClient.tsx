@@ -383,8 +383,8 @@ export default function MeterClient() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-                <div className="w-full max-w-lg bg-white min-h-[640px] rounded-[2.5rem] flex flex-col items-center justify-center gap-4 shadow-xl border border-gray-100">
+            <div className="min-h-screen bg-[#fcfdfd] flex items-center justify-center p-4">
+                <div className="w-full max-w-lg bg-[#fcfdfd] min-h-[640px] rounded-[2.5rem] flex flex-col items-center justify-center gap-4 shadow-xl border border-gray-100">
                     <div className="w-12 h-12 border-4 border-green-100 border-t-green-600 rounded-full animate-spin" />
                     <p className="text-sm font-bold text-green-600 animate-pulse">กำลังดึงข้อมูลมิเตอร์เก่า...</p>
                 </div>
@@ -767,7 +767,7 @@ export default function MeterClient() {
                     </div>
                 </div>
 
-                <div className="absolute bottom-0 w-full bg-white border-t border-gray-100 p-6 z-50 rounded-b-[2.5rem]">
+                <div className="absolute bottom-0 w-full bg-[#fcfdfd]/95 backdrop-blur-md border-t border-gray-100/80 p-6 z-50 rounded-b-[2.5rem]">
                     <button
                         onClick={handleSave}
                         disabled={isSaveDisabled}

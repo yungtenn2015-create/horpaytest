@@ -820,7 +820,7 @@ export default function MoveOutClient() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="min-h-screen bg-[#fcfdfd] flex items-center justify-center">
                 <div className="w-12 h-12 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin" />
             </div>
         )
@@ -882,7 +882,7 @@ export default function MoveOutClient() {
             title="แจ้งออก/ย้ายออก"
             subtitle="จัดการการคืนห้องพัก"
         >
-                <div className="bg-white sticky top-0 z-30 shadow-sm border-b border-gray-100">
+                <div className="bg-[#fcfdfd] sticky top-0 z-30 shadow-sm border-b border-gray-100/80">
                     <div className="px-6 py-4 sm:py-6">
                         {/* Search */}
                         <div className="relative group">

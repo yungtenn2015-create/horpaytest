@@ -49,8 +49,8 @@ export default function DashboardLayout({
     // Fallback to 'overview' for all sub-pages under /dashboard/
 
     return (
-        <div className="min-h-screen bg-[#fcfdfd] flex flex-col">
-            <main className="flex-1 pb-24">
+        <div className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-[#fcfdfd]">
+            <main className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24">
                 {children}
             </main>
 

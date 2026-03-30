@@ -168,8 +168,8 @@ export default function TenantsClient() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-                <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+            <div className="min-h-screen bg-[#fcfdfd] flex items-center justify-center p-6">
+                <div className="w-16 h-16 border-4 border-emerald-100 border-t-primary rounded-full animate-spin" />
             </div>
         )
     }
@@ -179,12 +179,12 @@ export default function TenantsClient() {
             title="ข้อมูลผู้เช่า"
             subtitle="จัดการข้อมูลพื้นฐานและการติดต่อ"
         >
-                <div className="bg-white sticky top-0 z-30 shadow-sm border-b border-gray-100">
+                <div className="bg-[#fcfdfd] sticky top-0 z-30 shadow-sm border-b border-gray-100/80">
                     <div className="px-6 py-4 sm:py-6">
                         {/* Search Bar */}
                         <div className="relative group">
                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <MagnifyingGlassIcon className={`h-5 w-5 transition-colors duration-300 ${searchQuery ? 'text-blue-500' : 'text-gray-400'}`} />
+                                <MagnifyingGlassIcon className={`h-5 w-5 transition-colors duration-300 ${searchQuery ? 'text-primary' : 'text-gray-400'}`} />
                             </div>
                             <input
                                 type="text"
@@ -218,24 +218,26 @@ export default function TenantsClient() {
                             <button
                                 key={tenant.id}
                                 onClick={() => setSelectedTenant(tenant)}
-                                className="w-full bg-white p-4 rounded-3xl border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex items-center justify-between group hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 active:scale-[0.98]"
+                                className="w-full bg-white p-4 rounded-3xl border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex items-center justify-between group hover:border-emerald-200 hover:shadow-xl hover:shadow-emerald-500/10 transition-all duration-300 active:scale-[0.98]"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className="w-14 h-14 bg-blue-50 rounded-2xl flex flex-col items-center justify-center border border-blue-100 group-hover:bg-blue-600 group-hover:border-blue-600 transition-colors duration-300">
-                                        <span className="text-[10px] font-black text-blue-400 group-hover:text-blue-100 leading-none mb-1">ห้อง</span>
-                                        <span className="text-xl font-black text-blue-700 group-hover:text-white leading-none tracking-tight">{tenant.rooms.room_number}</span>
+                                    <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex flex-col items-center justify-center border border-emerald-100 group-hover:bg-primary group-hover:border-primary transition-colors duration-300">
+                                        <span className="text-[10px] font-black text-emerald-600/80 group-hover:text-emerald-50 leading-none mb-1">ห้อง</span>
+                                        <span className="text-xl font-black text-primary group-hover:text-white leading-none tracking-tight">{tenant.rooms.room_number}</span>
                                     </div>
                                     <div className="text-left">
-                                        <h3 className="text-base font-black text-gray-800 tracking-tight group-hover:text-blue-700 transition-colors">{tenant.name}</h3>
+                                        <h3 className="text-base font-black text-gray-800 tracking-tight group-hover:text-primary transition-colors">{tenant.name}</h3>
                                         <div className="flex items-center gap-2 mt-0.5">
-                                            <div className={`w-1.5 h-1.5 rounded-full ${tenant.planned_move_out_date ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em]">
+                                            <div className={`w-1.5 h-1.5 rounded-full ${tenant.planned_move_out_date ? 'bg-amber-500' : 'bg-sky-500'}`} />
+                                            <span
+                                                className={`text-[10px] font-bold uppercase tracking-[0.1em] ${tenant.planned_move_out_date ? 'text-amber-600' : 'text-sky-600'}`}
+                                            >
                                                 {tenant.planned_move_out_date ? 'แจ้งออก' : 'กำลังเข้าพัก'}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-300 group-hover:bg-blue-50 group-hover:text-blue-500 transition-all">
+                                <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-300 group-hover:bg-emerald-50 group-hover:text-primary transition-all">
                                     <ChevronRightIcon className="w-5 h-5 stroke-[2.5]" />
                                 </div>
                             </button>
@@ -259,8 +261,8 @@ export default function TenantsClient() {
                         <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setSelectedTenant(null)} />
 
                         <div className="relative w-full sm:max-w-md bg-white rounded-t-[2.5rem] sm:rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[850px] animate-in slide-in-from-bottom duration-500 ring-1 ring-black/5">
-                            {/* Modal Header - Match AddTenant Style but BLUE */}
-                            <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-8 pt-12 pb-10 relative overflow-hidden shrink-0">
+                            {/* Modal Header — โทนเขียวอ่อนให้สอดคล้องแดชบอร์ด */}
+                            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 px-8 pt-12 pb-10 relative overflow-hidden shrink-0">
                                 <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                                 <button
                                     onClick={() => setSelectedTenant(null)}
@@ -277,7 +279,7 @@ export default function TenantsClient() {
                                     <div className="flex-1 min-w-0">
                                         <h2 className="text-2xl font-black text-white leading-tight truncate drop-shadow-sm">{selectedTenant.name}</h2>
                                         <div className="flex flex-wrap gap-2 mt-2">
-                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${selectedTenant.planned_move_out_date ? 'bg-amber-500' : 'bg-blue-400'} text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md transition-colors`}>
+                                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${selectedTenant.planned_move_out_date ? 'bg-amber-500' : 'bg-sky-500'} text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md transition-colors`}>
                                                 <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
                                                 {selectedTenant.planned_move_out_date ? 'แจ้งออก' : 'กำลังเข้าพัก'}
                                             </span>
@@ -298,14 +300,14 @@ export default function TenantsClient() {
                             <div className="flex-1 overflow-y-auto px-8 py-8 space-y-10 bg-white relative z-20 custom-scrollbar">
                                 {/* 1. ข้อมูลพื้นฐาน (Basic Info) */}
                                 <div className="space-y-6">
-                                    <h3 className="text-[11px] font-black text-blue-600 flex items-center gap-2 uppercase tracking-[0.2em] opacity-80">
+                                    <h3 className="text-[11px] font-black text-primary flex items-center gap-2 uppercase tracking-[0.2em] opacity-90">
                                         <UserCircleIcon className="w-4 h-4" /> ข้อมูลพื้นฐาน
                                     </h3>
 
                                     <div className="grid grid-cols-1 gap-6">
                                         {/* Room Number - Explicitly requested */}
                                         <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm">
+                                            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-primary border border-emerald-100 shadow-sm">
                                                 <HomeIcon className="w-6 h-6" />
                                             </div>
                                             <div>
@@ -317,7 +319,7 @@ export default function TenantsClient() {
                                         {/* Phone */}
                                         <div className="flex items-center justify-between group">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm">
+                                                <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-primary border border-emerald-100 shadow-sm">
                                                     <PhoneIcon className="w-6 h-6" />
                                                 </div>
                                                 <div>
@@ -328,7 +330,7 @@ export default function TenantsClient() {
                                             {selectedTenant.phone && (
                                                 <button
                                                     onClick={() => handleCopyPhone(selectedTenant.phone!)}
-                                                    className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100 active:scale-90"
+                                                    className="w-12 h-12 bg-emerald-50 text-primary rounded-2xl flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-sm border border-emerald-100 active:scale-90"
                                                 >
                                                     <PhoneIcon className="w-5 h-5" />
                                                 </button>
@@ -337,7 +339,7 @@ export default function TenantsClient() {
 
                                         {/* Occupation */}
                                         <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm">
+                                            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-primary border border-emerald-100 shadow-sm">
                                                 <BriefcaseIcon className="w-6 h-6 stroke-2" />
                                             </div>
                                             <div>
@@ -348,7 +350,7 @@ export default function TenantsClient() {
 
                                         {/* Address */}
                                         <div className="flex items-start gap-4">
-                                            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100 shadow-sm shrink-0">
+                                            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-primary border border-emerald-100 shadow-sm shrink-0">
                                                 <MapPinIcon className="w-6 h-6" />
                                             </div>
                                             <div>
@@ -363,7 +365,7 @@ export default function TenantsClient() {
 
                                 {/* 2. ข้อมูลยานพาหนะและการติดต่อฉุกเฉิน (Vehicles & Emergency) */}
                                 <div className="space-y-6 pt-2">
-                                    <h3 className="text-[11px] font-black text-blue-600 flex items-center gap-2 uppercase tracking-[0.2em] opacity-80">
+                                    <h3 className="text-[11px] font-black text-primary flex items-center gap-2 uppercase tracking-[0.2em] opacity-90">
                                         <TruckIcon className="w-4 h-4" /> ยานพาหนะและติดต่อฉุกเฉิน
                                     </h3>
 
@@ -388,7 +390,7 @@ export default function TenantsClient() {
 
                                 {/* 3. รายละเอียดสัญญาเช่า (Lease Details) */}
                                 <div className="space-y-6 pt-2">
-                                    <h3 className="text-[11px] font-black text-blue-600 flex items-center gap-2 uppercase tracking-[0.2em] opacity-80">
+                                    <h3 className="text-[11px] font-black text-primary flex items-center gap-2 uppercase tracking-[0.2em] opacity-90">
                                         <DocumentTextIcon className="w-4 h-4" /> รายละเอียดสัญญาเช่า
                                     </h3>
 
@@ -397,7 +399,7 @@ export default function TenantsClient() {
                                             <div className="space-y-1.5">
                                                 <p className="text-xs font-black text-black uppercase tracking-widest ml-1">วันที่เริ่มสัญญา</p>
                                                 <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100 shadow-inner">
-                                                    <CalendarDaysIcon className="w-5 h-5 text-blue-500 shrink-0" />
+                                                    <CalendarDaysIcon className="w-5 h-5 text-primary shrink-0" />
                                                     <span className="text-base font-black text-black">{formatThaiDate(selectedTenant.lease_contracts?.[0]?.start_date || selectedTenant.created_at)}</span>
                                                 </div>
                                             </div>
@@ -411,7 +413,7 @@ export default function TenantsClient() {
                                         </div>
 
                                         {selectedTenant.lease_contracts?.[0]?.start_date && selectedTenant.lease_contracts?.[0]?.end_date && (
-                                            <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 text-xs font-black rounded-xl border border-blue-100 uppercase tracking-widest shadow-sm self-start inline-flex">
+                                            <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-800 text-xs font-black rounded-xl border border-emerald-100 uppercase tracking-widest shadow-sm self-start inline-flex">
                                                 ระยะเวลาสัญญา: {calculateDuration(selectedTenant.lease_contracts[0].start_date, selectedTenant.lease_contracts[0].end_date)}
                                             </div>
                                         )}
@@ -424,8 +426,8 @@ export default function TenantsClient() {
                                                     ฿{(selectedTenant.lease_contracts?.[0]?.rent_price || selectedTenant.rooms.base_price).toLocaleString()}
                                                 </p>
                                             </div>
-                                            <div className="p-6 bg-blue-50/50 rounded-3xl border border-blue-100/50">
-                                                <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">เงินมัดจำ</p>
+                                            <div className="p-6 bg-emerald-50/60 rounded-3xl border border-emerald-100/80">
+                                                <p className="text-xs font-black text-primary uppercase tracking-widest mb-1">เงินมัดจำ</p>
                                                 <p className="text-2xl font-black text-black">
                                                     ฿{(selectedTenant.lease_contracts?.[0]?.deposit_amount || 0).toLocaleString()}
                                                 </p>
@@ -439,7 +441,7 @@ export default function TenantsClient() {
                             <div className="px-8 py-6 bg-gray-50 border-t border-gray-100 shrink-0 flex flex-col gap-3">
                                 <button
                                     onClick={() => setSelectedTenant(null)}
-                                    className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl transition-all active:scale-95 shadow-xl shadow-blue-500/20 text-lg"
+                                    className="w-full bg-primary text-white font-black py-4 rounded-2xl transition-all active:scale-95 shadow-xl shadow-emerald-500/25 hover:brightness-105 text-lg"
                                 >
                                     ปิดหน้าต่าง
                                 </button>
@@ -451,7 +453,7 @@ export default function TenantsClient() {
                 {/* ── Copy Toast ── */}
                 {copyToast && (
                     <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4 duration-300">
-                        <div className="bg-blue-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-blue-400">
+                        <div className="bg-primary text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-400/50">
                             <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
                                 <PhoneIcon className="w-4 h-4 text-white" />
                             </div>

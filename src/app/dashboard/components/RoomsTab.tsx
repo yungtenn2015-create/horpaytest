@@ -237,7 +237,7 @@ export default function RoomsTab({
         );
     };
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col relative z-10 bg-gray-50">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col bg-gray-50 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Premium Header (Green Theme) */}
             <div className="relative min-h-[210px]">
                 {/* Background with clipping */}

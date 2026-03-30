@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
-import { 
-    ChevronLeftIcon, 
-    HomeModernIcon, 
-    BanknotesIcon, 
+import { DashboardMenuPageChrome } from '@/src/components/dashboard/DashboardMenuPageChrome'
+import {
+    HomeModernIcon,
+    BanknotesIcon,
     CalendarDaysIcon,
     DevicePhoneMobileIcon,
     MapPinIcon,
@@ -14,7 +14,6 @@ import {
     CheckCircleIcon,
     ArrowPathIcon,
     ChatBubbleLeftRightIcon,
-    XMarkIcon,
     UserIcon
 } from '@heroicons/react/24/outline'
 
@@ -204,36 +203,18 @@ export default function SettingsClient() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="min-h-screen bg-[#fcfdfd] flex items-center justify-center">
                 <div className="w-10 h-10 border-4 border-emerald-100 border-t-emerald-500 rounded-full animate-spin" />
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-gray-50/50 pb-24">
-            {/* Header */}
-            <header className="bg-white px-6 pt-12 pb-6 shadow-sm sticky top-0 z-30">
-                <div className="max-w-2xl mx-auto flex items-center justify-between">
-                    <button 
-                        onClick={() => router.back()}
-                        className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-all active:scale-95"
-                    >
-                        <ChevronLeftIcon className="w-6 h-6 stroke-[2.5]" />
-                    </button>
-                    <h1 className="text-xl font-black text-gray-800">ตั้งค่าหอพัก</h1>
-                    <button
-                        type="button"
-                        onClick={() => router.push('/dashboard')}
-                        className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-all active:scale-95"
-                        aria-label="ปิดและกลับแดชบอร์ด"
-                    >
-                        <XMarkIcon className="w-6 h-6 stroke-[2.5]" />
-                    </button>
-                </div>
-            </header>
-
-            <main className="max-w-2xl mx-auto px-6 py-8 space-y-8">
+        <DashboardMenuPageChrome
+            title="ตั้งค่าหอพัก"
+            subtitle="ข้อมูลหอพัก บัญชีรับเงิน และการเชื่อมต่อ LINE"
+        >
+            <main className="max-w-2xl mx-auto px-6 py-8 space-y-8 pb-28">
                 {/* ── SECTION 1: DORM INFO ── */}
                 <section className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100">
                     <div className="flex items-center gap-3 mb-8">
@@ -531,6 +512,6 @@ export default function SettingsClient() {
                     </button>
                 </div>
             </div>
-        </div>
+        </DashboardMenuPageChrome>
     )
 }

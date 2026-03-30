@@ -731,8 +731,6 @@ export default function DashboardClient() {
         }
 
         const fallbackOwnerName = user.user_metadata?.name || user.email?.split('@')[0] || 'Owner';
-        setUserName(fallbackOwnerName);
-        setUserInitial(fallbackOwnerName.charAt(0).toUpperCase());
 
         try {
             setDbError('')
@@ -763,10 +761,12 @@ export default function DashboardClient() {
                     trial_expires_at: userData.trial_expires_at
                 });
                 loadedOwnerName = typeof userData.name === 'string' ? userData.name.trim() : '';
-                const displayName = loadedOwnerName || fallbackOwnerName;
-                setUserName(displayName);
-                setUserInitial(displayName.charAt(0).toUpperCase());
             }
+
+            // ตั้งชื่อแสดงครั้งเดียวหลังได้ข้อมูลจาก DB — ไม่ใช้ชื่อจาก JWT ก่อน เพื่อกันกระพริบชื่อเก่า
+            const displayName = loadedOwnerName || fallbackOwnerName;
+            setUserName(displayName);
+            setUserInitial(displayName.charAt(0).toUpperCase());
 
             if (dormError) throw dormError;
             if (!dormsData || dormsData.length === 0) {
@@ -1522,9 +1522,11 @@ export default function DashboardClient() {
         )
     }
 
+    const shellBgClass = activeTab === 'settings' ? 'bg-[#fcfdfd]' : 'bg-gray-50'
+
     return (
-        <div className="min-h-screen bg-gray-50 sm:flex sm:items-center sm:justify-center sm:py-8 font-sans text-gray-800">
-            <div className="w-full sm:max-w-lg bg-gray-50 min-h-screen sm:min-h-[850px] sm:rounded-[2.5rem] sm:shadow-2xl overflow-hidden flex flex-col relative pb-24 border-gray-100 sm:border">
+        <div className={`flex h-full min-h-0 flex-1 flex-col ${shellBgClass} sm:min-h-screen sm:flex sm:items-center sm:justify-center sm:py-8 font-sans text-gray-800`}>
+            <div className={`flex h-full min-h-0 w-full sm:max-w-lg flex-1 flex-col overflow-x-hidden overflow-y-hidden ${shellBgClass} relative pb-24 sm:min-h-[850px] sm:flex-none sm:rounded-[2.5rem] sm:shadow-2xl border-gray-100 sm:border`}>
 
                 {renderCustomCalendar()}
                 {renderContractFormModal()}
@@ -1589,6 +1591,7 @@ export default function DashboardClient() {
 
                 {/* ── Settings Tab Content ── */}
                 {activeTab === 'settings' && (
+                    <div className="flex h-full min-h-0 flex-1 flex-col">
                     <SettingsTab
                         onCloseSettings={() => setActiveTab('overview')}
                         activeSettingsTab={activeSettingsTab}
@@ -1620,6 +1623,7 @@ export default function DashboardClient() {
                         savingSettings={savingSettings}
                         settingsMessage={settingsMessage}
                     />
+                    </div>
                 )}
 
                 {/* ── Contract (Tenants) Tab Content ── */}

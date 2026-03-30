@@ -244,7 +244,7 @@ export default function HistoryClient() {
                 </>
             }
         >
-                <header className="px-6 pt-4 pb-6 bg-white/90 backdrop-blur-md sticky top-0 z-40 border-b border-gray-50">
+                <header className="px-6 pt-4 pb-6 bg-[#fcfdfd]/95 backdrop-blur-md sticky top-0 z-40 border-b border-gray-100/80">
                     {/* Month Selector */}
                     <div className="flex items-center justify-between bg-purple-50 rounded-[1.5rem] p-4 mb-6 shadow-inner ring-1 ring-purple-100/50">
                         <button
