@@ -223,7 +223,7 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
             subtitle="เชื่อมต่อ LINE OA เพื่อส่งแจ้งเตือนไปยังเจ้าของหอและผู้เช่า"
             onBack={onCloseSettings}
         >
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 px-6 pb-[calc(5.75rem+5.5rem+env(safe-area-inset-bottom,0px))] pt-4">
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 px-6 pb-dashboard-nav pt-4">
             <div className="mb-8">
                 <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-black ${isDormSection ? 'bg-gray-50 text-gray-700 border-gray-200' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
                     {isDormSection ? <BuildingOfficeIcon className="w-4 h-4" /> : <ChatBubbleLeftRightIcon className="w-4 h-4" />}
@@ -772,11 +772,11 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
                 </div>
             )}
 
-            <div className="pointer-events-none fixed bottom-[calc(5.75rem+0.5rem)] left-1/2 z-[90] w-full max-w-lg -translate-x-1/2 px-6">
+            <div className="mt-10 px-1">
                 <button
                     onClick={handleSaveSettings}
                     disabled={savingSettings}
-                    className="pointer-events-auto w-full h-16 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-2xl font-black text-lg shadow-xl shadow-green-100/50 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
+                    className="w-full h-16 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-2xl font-black text-lg shadow-xl shadow-green-100/50 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
                 >
                     {savingSettings ? (
                         <ArrowPathIcon className="w-6 h-6 animate-spin" />
