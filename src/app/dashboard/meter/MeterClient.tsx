@@ -412,8 +412,9 @@ export default function MeterClient() {
                 </button>
             }
         >
-                <div className="relative z-0 flex-1 overflow-y-auto pb-dashboard-nav">
-                    <div className="p-6 space-y-6">
+                <div className="flex min-h-0 flex-1 flex-col">
+                    <div className="relative z-0 flex-1 overflow-y-auto pb-dashboard-nav">
+                        <div className="p-6 space-y-6">
 
                         <div className="bg-white border border-emerald-100 p-4 rounded-[2rem] flex items-center justify-between shadow-sm relative z-30">
                             <span className="text-sm font-black text-gray-400">งวดประจำเดือน:</span>
@@ -764,28 +765,28 @@ export default function MeterClient() {
                                 })
                             )}
                         </div>
+                        
+                        <div className="pt-2">
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaveDisabled}
+                                className="w-full h-16 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-[1.8rem] font-black text-lg flex items-center justify-center gap-3 shadow-2xl shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50"
+                            >
+                                {saving ? (
+                                    <>
+                                        <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        กำลังบันทึกข้อมูล ({displayedRooms.length} ห้อง)
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircleIcon className="w-6 h-6" />
+                                        บันทึกข้อมูล ({displayedRooms.length} ห้อง)
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
-                </div>
-
-                <div className="absolute bottom-0 w-full bg-[#fcfdfd]/95 backdrop-blur-md border-t border-gray-100/80 p-6 z-50 rounded-b-[2.5rem]">
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaveDisabled}
-                        className={`w-full py-4 rounded-2xl font-black text-white shadow-xl transition-all flex items-center justify-center gap-2
-                            ${isSaveDisabled
-                                ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
-                                : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200 active:scale-95'
-                            }`}
-                    >
-                        {saving ? (
-                            <>
-                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                กำลังบันทึกข้อมูล...
-                            </>
-                        ) : (
-                            <span>บันทึกข้อมูล <span className="opacity-70 text-[10px] ml-1 uppercase tracking-wider font-black">({displayedRooms.length} ห้อง)</span></span>
-                        )}
-                    </button>
+                    </div>
                 </div>
 
                 {inlineSuccess && (

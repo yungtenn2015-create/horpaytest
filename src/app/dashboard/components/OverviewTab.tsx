@@ -470,7 +470,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                     {/* Greeting */}
                     <div className="relative z-0 text-white">
                         <p className="text-white text-sm font-bold flex items-center gap-2">
-                            สวัสดีคุณ {userName} 👋
+                            สวัสดี คุณ{userName}
                         </p>
                         <h1 className="text-3xl sm:text-3xl font-headline font-extrabold mt-1 leading-snug sm:leading-normal tracking-normal max-w-[min(100%,18rem)] sm:max-w-md break-words pb-0.5">
                             {dorm?.name || 'หอพักของฉัน'}
