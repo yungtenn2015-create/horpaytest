@@ -21,6 +21,23 @@ export default function RegisterPage() {
     const [acceptedTerms, setAcceptedTerms] = useState(false)
     const [hasReadTerms, setHasReadTerms] = useState(false)
 
+    const validatePasswordPolicy = (pw: string): string => {
+        const p = pw.trim()
+        if (p.length < 8 || p.length > 15) {
+            return 'รหัสผ่านต้องมีความยาว 8-15 ตัวอักษร และต้องประกอบด้วยตัวอักษรและตัวเลข'
+        }
+
+        // Require at least one Unicode letter and at least one digit.
+        const hasLetter = /[\p{L}]/u.test(p)
+        const hasDigit = /\d/.test(p)
+
+        if (!hasLetter || !hasDigit) {
+            return 'รหัสผ่านต้องประกอบด้วยตัวอักษรและตัวเลข (อย่างน้อยอย่างละ 1 ตัว)'
+        }
+
+        return ''
+    }
+
     async function handleRegister() {
         setError('')
 
@@ -40,8 +57,9 @@ export default function RegisterPage() {
             setError('รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน')
             return
         }
-        if (password.length < 6) {
-            setError('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร')
+        const pwError = validatePasswordPolicy(password)
+        if (pwError) {
+            setError(pwError)
             return
         }
         if (phone.length < 10) {
@@ -86,7 +104,7 @@ export default function RegisterPage() {
             if (msg.includes('User already registered')) {
                 msg = 'อีเมลนี้ถูกใช้งานไปแล้ว กรุณาเข้าสู่ระบบ'
             } else if (msg.includes('Password should be at least')) {
-                msg = 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร'
+                msg = 'รหัสผ่านต้องมีความยาว 8-15 ตัวอักษร และต้องประกอบด้วยตัวอักษรและตัวเลข'
             } else if (msg.includes('Unable to validate email address')) {
                 msg = 'รูปแบบอีเมลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง'
             } else if (
@@ -189,7 +207,7 @@ export default function RegisterPage() {
                     {/* Password */}
                     <div className="space-y-1.5">
                         <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">
-                            รหัสผ่าน (6 ตัวขึ้นไป) <span className="text-red-400">*</span>
+                            รหัสผ่าน (8-15 ตัวอักษร ต้องมีตัวอักษรและตัวเลข) <span className="text-red-400">*</span>
                         </label>
                         <div className="relative">
                             <input
@@ -198,6 +216,8 @@ export default function RegisterPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 autoComplete="new-password"
+                                minLength={8}
+                                maxLength={15}
                                 className="w-full h-13 px-4 pr-12 rounded-xl border-2 border-gray-100 bg-transparent text-gray-800 placeholder-gray-300 outline-none focus:border-emerald-500 focus:bg-white transition-all text-base font-sans"
                             />
                             <button

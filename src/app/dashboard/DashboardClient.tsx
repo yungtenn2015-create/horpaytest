@@ -353,6 +353,21 @@ export default function DashboardClient() {
         confirmPassword: ''
     })
 
+    const validatePasswordPolicy = (pw: string): string => {
+        const p = pw.trim()
+        if (p.length < 8 || p.length > 15) {
+            return 'รหัสผ่านใหม่ต้องมีความยาว 8-15 ตัวอักษร และต้องประกอบด้วยตัวอักษรและตัวเลข'
+        }
+
+        const hasLetter = /[\p{L}]/u.test(p)
+        const hasDigit = /\d/.test(p)
+        if (!hasLetter || !hasDigit) {
+            return 'รหัสผ่านใหม่ต้องประกอบด้วยตัวอักษรและตัวเลข (อย่างน้อยอย่างละ 1 ตัว)'
+        }
+
+        return ''
+    }
+
     // --- Contract Recording States (NEW) ---
     const [contracts, setContracts] = useState<TenantContract[]>([])
     const [fetchingContracts, setFetchingContracts] = useState(false)
@@ -390,8 +405,9 @@ export default function DashboardClient() {
             return
         }
 
-        if (passwordData.newPassword.length < 6) {
-            setPasswordError('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร')
+        const pwError = validatePasswordPolicy(passwordData.newPassword)
+        if (pwError) {
+            setPasswordError(pwError)
             return
         }
 
@@ -1718,12 +1734,13 @@ export default function DashboardClient() {
                                             </div>
                                             <input
                                                 required
-                                                minLength={6}
+                                                    minLength={8}
+                                                    maxLength={15}
                                                 type="password"
                                                 value={passwordData.newPassword}
                                                 onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                                                 className="w-full h-14 bg-gray-50 border-2 border-gray-50 rounded-2xl pl-12 pr-4 font-bold text-gray-800 focus:bg-white focus:border-primary transition-all outline-none"
-                                                placeholder="รหัสใหม่ (อย่างน้อย 6 ตัว)"
+                                                    placeholder="รหัสใหม่ (8-15 ตัวอักษร พร้อมตัวอักษรและตัวเลข)"
                                             />
                                         </div>
                                     </div>
