@@ -230,7 +230,7 @@ export default function TenantsTab({
                                                                 </span>
                                                             )}
                                                             {contract.status === 'moved_in' && (
-                                                                <span className="px-2 py-0.5 bg-emerald-50 text-primary rounded-md text-[10px] font-black border border-emerald-100 uppercase tracking-widest">
+                                                                <span className="px-2 py-0.5 bg-blue-50 text-blue-800 rounded-md text-[10px] font-black border border-blue-100 uppercase tracking-widest">
                                                                     พักอยู่ปัจจุบัน
                                                                 </span>
                                                             )}
